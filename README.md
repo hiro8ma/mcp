@@ -1,72 +1,26 @@
 # mpc
 
-Personal repository for experimenting with [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) implementations.
+Personal repository for MCP (Model Context Protocol) implementations.
 
 ## Structure
 
 | Directory | Description |
 |-----------|-------------|
-| `calc/` | Calculator MCP server (FastMCP) |
-| `db_server/` | Database MCP server with SQLite |
+| `calc/` | Calculator MCP server |
+| `db_server/` | SQLite database MCP server |
 | `external_api/` | Weather, News, IP info APIs |
-| `universal_tools/` | Web search, Python sandbox execution |
+| `universal_tools/` | Web search, Python execution |
 | `client/` | LLM-integrated MCP client |
-| `agent/` | Interactive MCP Agent with LLM task orchestration |
+| `agent/` | MCP Agent with task orchestration |
 
-## Getting Started
-
-Each server directory has its own `uv` environment.
+## Quick Start
 
 ```bash
-cd <server_dir>
-make run      # Run server (stdio)
-make inspect  # MCP Inspector
-```
-
-### MCP Client
-
-The `client/` directory provides a simple LLM-integrated client that lets you interact with MCP tools using natural language.
-
-```bash
-cd client
-cp .env.example .env  # Set OPENAI_API_KEY
+cd <directory>
 make run
 ```
-
-Example:
-```
-あなた: 1+2を計算して
-[分析] クエリを分析中...
-[判断] 1と2を加算するためにcalc.addツールを使用します。
-[選択] ツール: calc.add
-[実行] 処理中...
-[完了] 実行完了
-
-アシスタント: 1+2を計算した結果は3です。
-```
-
-### MCP Agent
-
-The `agent/` directory contains an interactive agent that connects to multiple MCP servers and uses LLM for task decomposition and execution.
-
-```bash
-cd agent
-cp .env.example .env  # Set OPENAI_API_KEY
-make run
-```
-
-Features:
-- Connects to calc, db_server, external_api, universal_tools servers
-- LLM-based task planning and execution
-- Interactive REPL interface
-
-## Configuration
-
-- `claude_desktop_config.json` - Claude Desktop MCP config (symlinked to `~/Library/Application Support/Claude/`)
-- `.claude/settings.json` - Claude Code MCP config
 
 ## Resources
 
 - [MCP Documentation](https://modelcontextprotocol.io/)
-- [MCP GitHub](https://github.com/modelcontextprotocol)
 - [FastMCP](https://gofastmcp.com/)
