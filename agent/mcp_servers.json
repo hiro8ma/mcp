@@ -1,0 +1,36 @@
+{
+  "mcpServers": {
+    "calc": {
+      "command": "/Users/hiroma/.local/bin/uv",
+      "args": ["--directory", "/Users/hiroma/go/src/github.com/hiro8ma/mpc/calc", "run", "calculator_server.py"],
+      "meta": {
+        "description": "基本的な計算機能",
+        "chapter": 3
+      }
+    },
+    "db_server": {
+      "command": "/Users/hiroma/.local/bin/uv",
+      "args": ["--directory", "/Users/hiroma/go/src/github.com/hiro8ma/mpc/db_server", "run", "database_server.py"],
+      "meta": {
+        "description": "SQLiteデータベース操作",
+        "chapter": 6
+      }
+    },
+    "external_api": {
+      "command": "/Users/hiroma/.local/bin/uv",
+      "args": ["--directory", "/Users/hiroma/go/src/github.com/hiro8ma/mpc/external_api", "run", "external_api_server.py"],
+      "meta": {
+        "description": "天気、ニュース、IP情報API",
+        "chapter": 7
+      }
+    },
+    "universal_tools": {
+      "command": "/Users/hiroma/.local/bin/uv",
+      "args": ["--directory", "/Users/hiroma/go/src/github.com/hiro8ma/mpc/universal_tools", "run", "universal_tools_server.py"],
+      "meta": {
+        "description": "Web検索、Pythonコード実行",
+        "chapter": 8
+      }
+    }
+  }
+}

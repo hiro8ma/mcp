@@ -1,0 +1,45 @@
+# MCP Agent Configuration
+
+display:
+  ui_mode: basic  # basic or rich
+  show_timing: true
+  show_thinking: true
+
+execution:
+  max_retries: 3
+  timeout_seconds: 30
+  fallback_enabled: false
+  max_tasks: 10
+  retry_strategy:
+    max_retries: 3
+    progressive_temperature: true
+    initial_temperature: 0.1
+    temperature_increment: 0.2
+
+llm:
+  model: gpt-4o-mini
+  temperature: 0.2
+  force_json: true
+  reasoning_effort: minimal
+  max_completion_tokens: 5000
+
+conversation:
+  context_limit: 10
+  max_history: 50
+
+error_handling:
+  auto_correct_params: true
+  retry_interval: 1.0
+
+development:
+  verbose: true
+  log_level: INFO
+  show_api_calls: true
+
+result_display:
+  max_result_length: 1000
+  show_truncated_info: true
+
+interrupt_handling:
+  timeout: 10.0
+  non_interactive_default: abort
