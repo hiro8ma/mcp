@@ -15,7 +15,7 @@
       "args": [
         "run",
         "--directory",
-        "/Users/hiroma/go/src/github.com/hiro8ma/mpc/fastmcp",
+        "/Users/hiroma/go/src/github.com/hiro8ma/mpc/calc",
         "python",
         "calculator_server.py"
       ]
@@ -26,6 +26,16 @@
         "-y",
         "mcp-remote",
         "http://127.0.0.1:8000/mcp"
+      ]
+    },
+    "db": {
+      "command": "/Users/hiroma/.local/bin/uv",
+      "args": [
+        "run",
+        "--directory",
+        "/Users/hiroma/go/src/github.com/hiro8ma/mpc/db_server",
+        "python",
+        "database_server.py"
       ]
     }
   }
