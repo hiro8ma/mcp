@@ -1,0 +1,44 @@
+{
+  "mcpServers": {
+    "calc": {
+      "command": "/Users/hiroma/.local/bin/uv",
+      "args": [
+        "run",
+        "--directory",
+        "/Users/hiroma/go/src/github.com/hiro8ma/mpc/calc",
+        "python",
+        "calculator_server.py"
+      ]
+    },
+    "db": {
+      "command": "/Users/hiroma/.local/bin/uv",
+      "args": [
+        "run",
+        "--directory",
+        "/Users/hiroma/go/src/github.com/hiro8ma/mpc/db_server",
+        "python",
+        "database_server.py"
+      ]
+    },
+    "external-api": {
+      "command": "/Users/hiroma/.local/bin/uv",
+      "args": [
+        "run",
+        "--directory",
+        "/Users/hiroma/go/src/github.com/hiro8ma/mpc/external_api",
+        "python",
+        "external_api_server.py"
+      ]
+    },
+    "universal-tools": {
+      "command": "/Users/hiroma/.local/bin/uv",
+      "args": [
+        "run",
+        "--directory",
+        "/Users/hiroma/go/src/github.com/hiro8ma/mpc/universal_tools",
+        "python",
+        "universal_tools_server.py"
+      ]
+    }
+  }
+}
