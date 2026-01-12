@@ -7,7 +7,7 @@ Personal repository for MCP (Model Context Protocol) implementations.
 | Directory | Description |
 |-----------|-------------|
 | `calc/` | Calculator MCP server |
-| `db_server/` | SQLite database MCP server |
+| `recommend_server/` | Cosine similarity recommendation server |
 | `external_api/` | Weather, News, IP info APIs |
 | `universal_tools/` | Web search, Python execution |
 | `client/` | LLM-integrated MCP client |

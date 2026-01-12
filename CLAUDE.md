@@ -5,7 +5,7 @@ This repository contains MCP (Model Context Protocol) server implementations.
 ## Structure
 
 - `calc/` - Calculator MCP server (FastMCP)
-- `db_server/` - Database MCP server with SQLite
+- `recommend_server/` - Recommendation server with cosine similarity
 - `external_api/` - Weather, News, IP info APIs
 - `universal_tools/` - Web search, Python sandbox execution
 

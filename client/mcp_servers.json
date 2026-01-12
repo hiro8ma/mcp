@@ -10,14 +10,14 @@
         "calculator_server.py"
       ]
     },
-    "db": {
+    "recommend": {
       "command": "/Users/hiroma/.local/bin/uv",
       "args": [
         "run",
         "--directory",
-        "/Users/hiroma/go/src/github.com/hiro8ma/mcp/db_server",
+        "/Users/hiroma/go/src/github.com/hiro8ma/mcp/recommend_server",
         "python",
-        "database_server.py"
+        "recommend_server.py"
       ]
     },
     "external-api": {
