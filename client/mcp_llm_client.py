@@ -23,7 +23,8 @@ load_dotenv()
 class ToolCollector:
     """MCPサーバーのツール情報を収集"""
 
-    def __init__(self, config_file: str = "mcp_servers.json"):
+    def __init__(self, config_file: str = "mcp_servers.json", status_callback=None):
+        self._log = status_callback or (lambda msg: print(msg, flush=True))
         self.servers = {}
         self.clients = {}
         self.tools_schema = {}
@@ -48,7 +49,7 @@ class ToolCollector:
                 }
 
     async def collect_all_tools(self):
-        print("[収集] ツール情報を収集中...", flush=True)
+        self._log("[収集] ツール情報を収集中...")
 
         for server_name, server_info in self.servers.items():
             try:
@@ -71,11 +72,11 @@ class ToolCollector:
                     }
                     self.tools_schema[server_name].append(tool_info)
 
-                print(f"  [成功] {server_name}: {len(tools)}個のツール", flush=True)
+                self._log(f"  [成功] {server_name}: {len(tools)}個のツール")
                 await client.__aexit__(None, None, None)
 
             except Exception as e:
-                print(f"  [エラー] {server_name}: {e}", flush=True)
+                self._log(f"  [エラー] {server_name}: {e}")
 
 
 class LLMIntegrationPrep:
@@ -122,8 +123,9 @@ class LLMIntegrationPrep:
 class LLMClient:
     """LLM統合MCPクライアント"""
 
-    def __init__(self, config_file: str = "mcp_servers.json"):
-        self.collector = ToolCollector(config_file)
+    def __init__(self, config_file: str = "mcp_servers.json", status_callback=None):
+        self._log = status_callback or (lambda msg: print(msg, flush=True))
+        self.collector = ToolCollector(config_file, status_callback=self._log)
         self.prep = LLMIntegrationPrep()
         self.llm = AsyncOpenAI(api_key=os.getenv("OPENAI_API_KEY"))
         self.clients = {}
@@ -236,7 +238,7 @@ class LLMClient:
             return True, f"\n不明なコマンド: /{cmd_name}\n/help でコマンド一覧を確認してください。\n"
 
     async def initialize(self):
-        print("[起動] LLM統合MCPクライアントを起動中...", flush=True)
+        self._log("[起動] LLM統合MCPクライアントを起動中...")
         await self.collector.collect_all_tools()
 
         for server_name, server_info in self.collector.servers.items():
@@ -248,17 +250,16 @@ class LLMClient:
                 await client.__aenter__()
                 self.clients[server_name] = client
             except Exception as e:
-                print(f"  [WARNING] {server_name}への接続失敗: {e}")
+                self._log(f"  [WARNING] {server_name}への接続失敗: {e}")
 
-        print("[完了] 初期化完了\n", flush=True)
+        self._log("[完了] 初期化完了")
         self._show_available_tools()
 
     def _show_available_tools(self):
         total_tools = sum(len(tools) for tools in self.collector.tools_schema.values())
-        print(f"[ツール] 利用可能なツール: {total_tools}個")
+        self._log(f"[ツール] 利用可能なツール: {total_tools}個")
         for server_name, tools in self.collector.tools_schema.items():
-            print(f"  - {server_name}: {len(tools)}個")
-        print()
+            self._log(f"  - {server_name}: {len(tools)}個")
 
     async def _analyze_query(self, query: str) -> Dict:
         tools_desc = self.prep.prepare_tools_for_llm(self.collector.tools_schema)
@@ -308,24 +309,24 @@ needs_tool=falseの場合:
 
     async def process_query(self, query: str) -> str:
         try:
-            print("  [分析] クエリを分析中...", flush=True)
+            self._log("  [分析] クエリを分析中...")
             decision = await self._analyze_query(query)
 
             self.conversation_history.append({"role": "user", "content": query})
 
             if decision.get("reasoning"):
-                print(f"  [判断] {decision['reasoning']}", flush=True)
+                self._log(f"  [判断] {decision['reasoning']}")
 
             if decision.get("needs_tool", False):
-                print(f"  [選択] ツール: {decision['server']}.{decision['tool']}", flush=True)
-                print(f"  [実行] 処理中...", flush=True)
+                self._log(f"  [選択] ツール: {decision['server']}.{decision['tool']}")
+                self._log(f"  [実行] 処理中...")
 
                 result = await self._execute_tool(
                     decision['server'],
                     decision['tool'],
                     decision['arguments']
                 )
-                print(f"  [完了] 実行完了", flush=True)
+                self._log(f"  [完了] 実行完了")
 
                 return await self._interpret_result(query, decision, result)
             else:
