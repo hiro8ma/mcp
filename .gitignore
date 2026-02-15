@@ -6,3 +6,13 @@ claude_desktop_config.json
 .claude/settings.json
 **/settings.local.json
 chroma_data/
+
+# Model weights / training data
+*.pth
+**/data/MNIST/
+
+# OS
+.DS_Store
+
+# Playwright
+.playwright-mcp/
