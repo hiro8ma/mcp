@@ -202,4 +202,4 @@ if __name__ == "__main__":
         exit(1)
 
     app = create_app()
-    app.launch(server_name="0.0.0.0", server_port=7860, theme=gr.themes.Soft())
+    app.launch(server_name="0.0.0.0", server_port=7860, theme=gr.themes.Soft(), ssr_mode=False)
