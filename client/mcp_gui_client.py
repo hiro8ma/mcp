@@ -121,7 +121,6 @@ async def respond(message, history, session):
 def create_app() -> gr.Blocks:
     with gr.Blocks(
         title="MCP LLMクライアント",
-        theme=gr.themes.Soft(),
     ) as demo:
         session_state = gr.State(GUISession())
 
@@ -133,7 +132,6 @@ def create_app() -> gr.Blocks:
                 chatbot = gr.Chatbot(
                     label="チャット",
                     height=500,
-                    type="messages",
                     show_copy_button=True,
                 )
                 with gr.Row():
@@ -204,4 +202,4 @@ if __name__ == "__main__":
         exit(1)
 
     app = create_app()
-    app.launch(server_name="0.0.0.0", server_port=7860)
+    app.launch(server_name="0.0.0.0", server_port=7860, theme=gr.themes.Soft())
