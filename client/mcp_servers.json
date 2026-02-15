@@ -49,6 +49,16 @@
         "python",
         "server.py"
       ]
+    },
+    "image-classifier": {
+      "command": "/Users/hiroma/.local/bin/uv",
+      "args": [
+        "run",
+        "--directory",
+        "/Users/hiroma/go/src/github.com/hiro8ma/mcp/image_classifier",
+        "python",
+        "image_classifier_server.py"
+      ]
     }
   }
 }
