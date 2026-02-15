@@ -48,35 +48,40 @@ class ToolCollector:
                     "path": path
                 }
 
+    async def _collect_server_tools(self, server_name: str, server_info: dict):
+        """1サーバーのツール情報を収集"""
+        command = server_info["path"][0]
+        args = server_info["path"][1:]
+        transport = StdioTransport(command=command, args=args)
+        client = Client(transport)
+        await client.__aenter__()
+        await client.ping()
+        self.clients[server_name] = client
+
+        tools = await client.list_tools()
+        self.tools_schema[server_name] = []
+
+        for tool in tools:
+            tool_info = {
+                "name": tool.name,
+                "description": tool.description or "",
+                "parameters": tool.inputSchema if hasattr(tool, 'inputSchema') else {}
+            }
+            self.tools_schema[server_name].append(tool_info)
+
+        self._log(f"  [成功] {server_name}: {len(tools)}個のツール")
+        await client.__aexit__(None, None, None)
+
     async def collect_all_tools(self, timeout_per_server: float = 30):
         self._log("[収集] ツール情報を収集中...")
 
         for server_name, server_info in self.servers.items():
             try:
-                async with asyncio.timeout(timeout_per_server):
-                    command = server_info["path"][0]
-                    args = server_info["path"][1:]
-                    transport = StdioTransport(command=command, args=args)
-                    client = Client(transport)
-                    await client.__aenter__()
-                    await client.ping()
-                    self.clients[server_name] = client
-
-                    tools = await client.list_tools()
-                    self.tools_schema[server_name] = []
-
-                    for tool in tools:
-                        tool_info = {
-                            "name": tool.name,
-                            "description": tool.description or "",
-                            "parameters": tool.inputSchema if hasattr(tool, 'inputSchema') else {}
-                        }
-                        self.tools_schema[server_name].append(tool_info)
-
-                    self._log(f"  [成功] {server_name}: {len(tools)}個のツール")
-                    await client.__aexit__(None, None, None)
-
-            except TimeoutError:
+                await asyncio.wait_for(
+                    self._collect_server_tools(server_name, server_info),
+                    timeout=timeout_per_server,
+                )
+            except asyncio.TimeoutError:
                 self._log(f"  [タイムアウト] {server_name}: {timeout_per_server}秒で応答なし")
             except Exception as e:
                 self._log(f"  [エラー] {server_name}: {e}")
@@ -246,14 +251,16 @@ class LLMClient:
 
         for server_name, server_info in self.collector.servers.items():
             try:
-                async with asyncio.timeout(30):
-                    command = server_info["path"][0]
-                    args = server_info["path"][1:]
+                async def _connect(sn, si):
+                    command = si["path"][0]
+                    args = si["path"][1:]
                     transport = StdioTransport(command=command, args=args)
                     client = Client(transport)
                     await client.__aenter__()
-                    self.clients[server_name] = client
-            except TimeoutError:
+                    self.clients[sn] = client
+
+                await asyncio.wait_for(_connect(server_name, server_info), timeout=30)
+            except asyncio.TimeoutError:
                 self._log(f"  [WARNING] {server_name}への接続タイムアウト")
             except Exception as e:
                 self._log(f"  [WARNING] {server_name}への接続失敗: {e}")
