@@ -6,6 +6,7 @@ Image Classifier MCP Server
 
 import base64
 import io
+from pathlib import Path
 import torch
 import torch.nn as nn
 from PIL import Image
@@ -39,6 +40,9 @@ class SimpleCNN(nn.Module):
 
 # Global model instance
 model = SimpleCNN()
+_weights_path = Path(__file__).parent / "mnist_cnn.pth"
+if _weights_path.exists():
+    model.load_state_dict(torch.load(_weights_path, map_location="cpu", weights_only=True))
 model.eval()
 
 
@@ -146,7 +150,7 @@ def get_model_info() -> dict:
         "classes": 10,
         "class_names": [str(i) for i in range(10)],
         "total_parameters": param_count,
-        "status": "Model loaded (untrained - for demo purposes)"
+        "status": "Trained" if _weights_path.exists() else "Untrained (demo)"
     }
 
 

@@ -4,9 +4,11 @@ Gradio Web GUI for LLM統合MCPクライアント
 """
 
 import os
+import base64
 import gradio as gr
 from dotenv import load_dotenv
 from datetime import datetime
+from pathlib import Path
 from mcp_llm_client import LLMClient
 
 load_dotenv()
@@ -78,30 +80,64 @@ async def on_app_load(session):
     )
 
 
-async def respond(message, history, session):
+def _encode_image(image_path: str) -> str:
+    """画像ファイルを Base64 エンコードする"""
+    with open(image_path, "rb") as f:
+        return base64.b64encode(f.read()).decode("utf-8")
+
+
+async def respond(message, image, history, session):
     """チャットメッセージを処理してレスポンスを返す"""
     if not session.initialized:
-        history.append({"role": "user", "content": message})
+        history.append({"role": "user", "content": message or "（画像を送信）"})
         history.append(
             {"role": "assistant", "content": "初期化中です。しばらくお待ちください..."}
         )
-        return "", history, session, session.get_tools_markdown(), session.get_status_markdown()
+        return "", None, history, session, session.get_tools_markdown(), session.get_status_markdown()
+
+    # ユーザーメッセージを構築（画像がある場合はチャットに表示）
+    user_content = []
+    if message:
+        user_content.append(message)
+    if image:
+        user_content.append(gr.Image(value=image))
+
+    display_message = message or ""
+    if image:
+        history.append({"role": "user", "content": user_content if len(user_content) > 1 else user_content[0]})
+    elif message:
+        history.append({"role": "user", "content": message})
 
     # スラッシュコマンド
-    if message.startswith("/"):
+    if message and message.startswith("/"):
         is_command, result = session.client._handle_command(message)
         if is_command:
-            history.append({"role": "user", "content": message})
             if result == "__QUIT__":
                 result = "セッションを終了します。ブラウザタブを閉じてください。"
             history.append({"role": "assistant", "content": result})
-            return "", history, session, session.get_tools_markdown(), session.get_status_markdown()
+            return "", None, history, session, session.get_tools_markdown(), session.get_status_markdown()
+
+    # 画像がある場合、Base64 エンコードしてクエリに添付
+    query = message or ""
+    if image:
+        b64 = _encode_image(image)
+        ext = Path(image).suffix.lstrip(".").lower()
+        if ext in ("jpg", "jpeg"):
+            ext = "jpeg"
+        if query:
+            query = f"{query}\n\n[添付画像(Base64): data:image/{ext};base64,{b64}]"
+        else:
+            query = f"この画像を分類してください\n\n[添付画像(Base64): data:image/{ext};base64,{b64}]"
+
+    if not query:
+        history.append({"role": "assistant", "content": "メッセージまたは画像を入力してください。"})
+        return "", None, history, session, session.get_tools_markdown(), session.get_status_markdown()
 
     # ステータスバッファをクリア
     session.status_messages.clear()
 
     # LLMClient でクエリ処理
-    response = await session.client.process_query(message)
+    response = await session.client.process_query(query)
 
     # ステータスメッセージがあれば折りたたみブロックで表示
     if session.status_messages:
@@ -112,10 +148,9 @@ async def respond(message, history, session):
     else:
         full_response = response
 
-    history.append({"role": "user", "content": message})
     history.append({"role": "assistant", "content": full_response})
 
-    return "", history, session, session.get_tools_markdown(), session.get_status_markdown()
+    return "", None, history, session, session.get_tools_markdown(), session.get_status_markdown()
 
 
 def create_app() -> gr.Blocks:
@@ -138,8 +173,14 @@ def create_app() -> gr.Blocks:
                     msg_input = gr.Textbox(
                         placeholder="初期化中...",
                         container=False,
-                        scale=7,
+                        scale=6,
                         interactive=False,
+                    )
+                    image_input = gr.Image(
+                        type="filepath",
+                        label="画像",
+                        scale=1,
+                        height=80,
                     )
                     submit_btn = gr.Button("送信", scale=1, variant="primary")
 
@@ -173,16 +214,17 @@ def create_app() -> gr.Blocks:
                 )
 
         # イベントハンドラ
-        outputs = [msg_input, chatbot, session_state, tools_display, status_display]
+        inputs = [msg_input, image_input, chatbot, session_state]
+        outputs = [msg_input, image_input, chatbot, session_state, tools_display, status_display]
 
         submit_btn.click(
             fn=respond,
-            inputs=[msg_input, chatbot, session_state],
+            inputs=inputs,
             outputs=outputs,
         )
         msg_input.submit(
             fn=respond,
-            inputs=[msg_input, chatbot, session_state],
+            inputs=inputs,
             outputs=outputs,
         )
 
