@@ -132,7 +132,7 @@ def create_app() -> gr.Blocks:
                 chatbot = gr.Chatbot(
                     label="チャット",
                     height=500,
-                    show_copy_button=True,
+                    buttons=["copy"],
                 )
                 with gr.Row():
                     msg_input = gr.Textbox(
