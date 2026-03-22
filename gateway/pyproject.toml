@@ -1,0 +1,10 @@
+[project]
+name = "llm-gateway"
+version = "0.1.0"
+description = "LiteLLMベースのLLMゲートウェイ（統一API、ルーティング、コスト追跡、フェイルオーバー）"
+readme = "README.md"
+authors = [{ name = "hiro8ma" }]
+requires-python = ">=3.13"
+dependencies = [
+    "litellm[proxy]>=1.60.0",
+]

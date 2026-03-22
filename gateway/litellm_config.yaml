@@ -1,0 +1,47 @@
+# LiteLLM Gateway 設定
+# 複数のLLMプロバイダーをOpenAI互換APIで統一
+#
+# 使い方:
+#   1. .env に API キーを設定
+#   2. make run でゲートウェイ起動
+#   3. http://localhost:4000 にOpenAI互換リクエストを送信
+
+model_list:
+  # Google Gemini（メイン — GCP軸）
+  - model_name: gemini
+    litellm_params:
+      model: gemini/gemini-2.0-flash
+      api_key: os.environ/GEMINI_API_KEY
+
+  # Anthropic Claude（高品質タスク用）
+  - model_name: claude
+    litellm_params:
+      model: anthropic/claude-sonnet-4-20250514
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  # OpenAI GPT（汎用）
+  - model_name: gpt
+    litellm_params:
+      model: openai/gpt-4o-mini
+      api_key: os.environ/OPENAI_API_KEY
+
+  # ローカルモデル（Ollama経由 — コスト$0）
+  - model_name: local
+    litellm_params:
+      model: ollama/llama3.2
+      api_base: http://localhost:11434
+
+# ルーティング設定
+router_settings:
+  # 複数モデルのフォールバック
+  fallbacks:
+    - gemini: [claude, gpt]
+    - claude: [gemini, gpt]
+    - gpt: [gemini, claude]
+
+  # コスト最適化ルーティング
+  routing_strategy: cost-based-routing
+
+# 一般設定
+general_settings:
+  master_key: os.environ/LITELLM_MASTER_KEY
