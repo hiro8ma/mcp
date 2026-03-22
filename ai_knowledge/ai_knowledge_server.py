@@ -46,6 +46,30 @@ def _generate(system_prompt: str, user_prompt: str, max_tokens: int = 512) -> st
     return generate(model, tokenizer, prompt=prompt, max_tokens=max_tokens)
 
 
+def _safe_generate(system_prompt: str, user_prompt: str, max_tokens: int = 512) -> str:
+    """ガードレール付きの推論を実行する。"""
+    from guardrails import apply_input_guardrails, apply_output_guardrails
+
+    # 入力ガードレール
+    masked_input, reverse_map, input_warnings = apply_input_guardrails(user_prompt)
+
+    # インジェクション検出時はブロック
+    for w in input_warnings:
+        if "インジェクション" in w:
+            return f"⚠️ セキュリティ警告: リクエストをブロックしました。({w})"
+
+    # 推論実行（マスク済み入力で）
+    response = _generate(system_prompt, masked_input, max_tokens)
+
+    # 出力ガードレール
+    final_response, output_warnings = apply_output_guardrails(response, reverse_map)
+
+    if output_warnings:
+        final_response += f"\n\n[ガードレール警告: {', '.join(output_warnings)}]"
+
+    return final_response
+
+
 @mcp.tool()
 def ask_ai_engineering(question: str) -> str:
     """AIエンジニアリングに関する質問に回答します。
@@ -53,11 +77,12 @@ def ask_ai_engineering(question: str) -> str:
     RAG、評価パイプライン、プロンプトエンジニアリング、エージェント設計、
     ファインチューニングなどのトピックについて、
     FT済みローカルモデルが実務に即した回答を生成します。
+    入力/出力ガードレール付き。
 
     Args:
         question: AIエンジニアリングに関する質問
     """
-    return _generate(
+    return _safe_generate(
         system_prompt="あなたはAIエンジニアリングの専門家です。技術的に正確で、実務に即した回答をしてください。",
         user_prompt=question,
     )
