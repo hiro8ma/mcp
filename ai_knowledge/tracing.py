@@ -1,16 +1,16 @@
 """
 トレーシング基盤 — AIエンジニアリング Ch10 モニタリングの実装。
 
+ローカルJSONLログ + Langfuse（設定時）のデュアル出力。
 各リクエストの実行パス全体を記録:
 - 入力ガードレール
 - キャッシュチェック
 - モデル推論
 - 出力ガードレール
-
-Langfuse統合の準備も含む。
 """
 
 import json
+import os
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -68,8 +68,20 @@ class Trace:
         }
 
 
+def _init_langfuse():
+    """Langfuseクライアントを初期化（環境変数が設定されている場合のみ）。"""
+    if os.environ.get("LANGFUSE_PUBLIC_KEY"):
+        try:
+            from langfuse import Langfuse
+
+            return Langfuse()
+        except Exception as e:
+            print(f"Langfuse初期化失敗（ローカルログのみ使用）: {e}")
+    return None
+
+
 class Tracer:
-    """リクエストトレーサー。"""
+    """リクエストトレーサー。ローカルJSONL + Langfuse（オプション）。"""
 
     def __init__(self, log_dir: str = "traces"):
         self.log_dir = Path(log_dir)
@@ -77,6 +89,8 @@ class Tracer:
         self._trace_count = 0
         self._total_duration = 0.0
         self._cache_hits = 0
+        self._langfuse = _init_langfuse()
+        self._langfuse_traces = {}
 
     def new_trace(self, user_prompt: str, system_prompt: str) -> Trace:
         """新しいトレースを開始。"""
@@ -87,12 +101,36 @@ class Tracer:
             system_prompt=system_prompt,
             start_time=time.time(),
         )
+
+        # Langfuseトレース開始
+        if self._langfuse:
+            lf_trace = self._langfuse.trace(
+                name="ai-knowledge-query",
+                input={"user_prompt": user_prompt, "system_prompt": system_prompt[:50]},
+                metadata={"trace_id": trace.trace_id},
+            )
+            self._langfuse_traces[trace.trace_id] = lf_trace
+
         return trace
 
     def start_span(self, trace: Trace, name: str, **metadata) -> Span:
         """スパンを開始。"""
         span = Span(name=name, start_time=time.time(), metadata=metadata)
         trace.spans.append(span)
+
+        # Langfuseスパン開始
+        if self._langfuse and trace.trace_id in self._langfuse_traces:
+            lf_trace = self._langfuse_traces[trace.trace_id]
+            if name == "model_inference":
+                lf_trace.generation(
+                    name=name,
+                    model="gemma-3-4b-it-4bit",
+                    input={"prompt": trace.user_prompt[:100]},
+                    metadata=metadata,
+                )
+            else:
+                lf_trace.span(name=name, metadata=metadata)
+
         return span
 
     def end_span(self, span: Span, **metadata):
@@ -108,10 +146,30 @@ class Tracer:
         if trace.cache_hit:
             self._cache_hits += 1
 
-        # ログファイルに追記
+        # ローカルJSONLログ
         log_file = self.log_dir / "traces.jsonl"
         with open(log_file, "a") as f:
             f.write(json.dumps(trace.to_dict(), ensure_ascii=False) + "\n")
+
+        # Langfuseトレース終了
+        if self._langfuse and trace.trace_id in self._langfuse_traces:
+            lf_trace = self._langfuse_traces[trace.trace_id]
+            lf_trace.update(
+                output={"response": response[:200]},
+                metadata={
+                    "total_duration_ms": round(trace.total_duration_ms, 1),
+                    "cache_hit": trace.cache_hit,
+                    "guardrail_triggered": trace.guardrail_triggered,
+                },
+            )
+
+            # ガードレールスコア
+            if trace.guardrail_triggered:
+                lf_trace.score(name="guardrail_block", value=1)
+            if trace.cache_hit:
+                lf_trace.score(name="cache_hit", value=1)
+
+            del self._langfuse_traces[trace.trace_id]
 
     def stats(self) -> dict:
         """トレーサーの統計。"""
@@ -129,6 +187,7 @@ class Tracer:
                 if self._trace_count > 0
                 else "0%"
             ),
+            "langfuse_enabled": self._langfuse is not None,
         }
 
 
