@@ -1,0 +1,11 @@
+[project]
+name = "ai-knowledge-assistant"
+version = "0.1.0"
+description = "FT済みローカルLLMによるAIエンジニアリング知識Q&A MCPサーバー"
+readme = "README.md"
+authors = [{ name = "hiro8ma" }]
+requires-python = ">=3.13"
+dependencies = [
+    "fastmcp>=2.14.2",
+    "mlx-lm>=0.22.0",
+]
