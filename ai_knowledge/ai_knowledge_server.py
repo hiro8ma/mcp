@@ -47,38 +47,58 @@ def _generate(system_prompt: str, user_prompt: str, max_tokens: int = 512) -> st
 
 
 def _safe_generate(system_prompt: str, user_prompt: str, max_tokens: int = 512) -> str:
-    """ガードレール + キャッシュ付きの推論を実行する。"""
+    """ガードレール + キャッシュ + トレーシング付きの推論を実行する。"""
     from cache import cache_response, get_cache_stats, get_cached_response
     from guardrails import apply_input_guardrails, apply_output_guardrails
+    from tracing import tracer
+
+    # トレース開始
+    trace = tracer.new_trace(user_prompt, system_prompt)
 
     # 入力ガードレール
+    span_guard_in = tracer.start_span(trace, "input_guardrails")
     masked_input, reverse_map, input_warnings = apply_input_guardrails(user_prompt)
+    tracer.end_span(span_guard_in, warnings=input_warnings)
+    trace.warnings.extend(input_warnings)
 
     # インジェクション検出時はブロック
     for w in input_warnings:
         if "インジェクション" in w:
+            trace.guardrail_triggered = True
+            tracer.end_trace(trace, response="BLOCKED")
             return f"⚠️ セキュリティ警告: リクエストをブロックしました。({w})"
 
     # キャッシュチェック
+    span_cache = tracer.start_span(trace, "cache_check")
     cached = get_cached_response(system_prompt, masked_input)
     if cached is not None:
-        stats = get_cache_stats()
+        tracer.end_span(span_cache, hit=True)
+        trace.cache_hit = True
         final_response, output_warnings = apply_output_guardrails(
             cached, reverse_map
         )
+        tracer.end_trace(trace, response=final_response[:100])
+        stats = get_cache_stats()
         return final_response + f"\n\n[キャッシュヒット | {stats['hit_rate']}]"
+    tracer.end_span(span_cache, hit=False)
 
     # 推論実行（マスク済み入力で）
+    span_inference = tracer.start_span(trace, "model_inference")
     response = _generate(system_prompt, masked_input, max_tokens)
+    tracer.end_span(span_inference, tokens=len(response))
 
     # キャッシュに保存
     cache_response(system_prompt, masked_input, response)
 
     # 出力ガードレール
+    span_guard_out = tracer.start_span(trace, "output_guardrails")
     final_response, output_warnings = apply_output_guardrails(response, reverse_map)
+    tracer.end_span(span_guard_out, warnings=output_warnings)
 
     if output_warnings:
         final_response += f"\n\n[ガードレール警告: {', '.join(output_warnings)}]"
+
+    tracer.end_trace(trace, response=final_response[:100])
 
     return final_response
 
