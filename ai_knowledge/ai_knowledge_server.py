@@ -47,7 +47,8 @@ def _generate(system_prompt: str, user_prompt: str, max_tokens: int = 512) -> st
 
 
 def _safe_generate(system_prompt: str, user_prompt: str, max_tokens: int = 512) -> str:
-    """ガードレール付きの推論を実行する。"""
+    """ガードレール + キャッシュ付きの推論を実行する。"""
+    from cache import cache_response, get_cache_stats, get_cached_response
     from guardrails import apply_input_guardrails, apply_output_guardrails
 
     # 入力ガードレール
@@ -58,8 +59,20 @@ def _safe_generate(system_prompt: str, user_prompt: str, max_tokens: int = 512) 
         if "インジェクション" in w:
             return f"⚠️ セキュリティ警告: リクエストをブロックしました。({w})"
 
+    # キャッシュチェック
+    cached = get_cached_response(system_prompt, masked_input)
+    if cached is not None:
+        stats = get_cache_stats()
+        final_response, output_warnings = apply_output_guardrails(
+            cached, reverse_map
+        )
+        return final_response + f"\n\n[キャッシュヒット | {stats['hit_rate']}]"
+
     # 推論実行（マスク済み入力で）
     response = _generate(system_prompt, masked_input, max_tokens)
+
+    # キャッシュに保存
+    cache_response(system_prompt, masked_input, response)
 
     # 出力ガードレール
     final_response, output_warnings = apply_output_guardrails(response, reverse_map)
