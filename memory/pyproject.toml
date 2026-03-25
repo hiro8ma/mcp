@@ -1,0 +1,13 @@
+[project]
+name = "memory-server"
+version = "0.1.0"
+description = "セッション横断の長期記憶MCPサーバー — SQLite + ベクトル検索 + 時間減衰"
+readme = "README.md"
+authors = [{ name = "hiro8ma" }]
+requires-python = ">=3.13"
+dependencies = [
+    "fastmcp>=2.14.2",
+    "sqlite-vec>=0.1.6",
+    "onnxruntime>=1.21.0",
+    "numpy>=2.0.0",
+]
