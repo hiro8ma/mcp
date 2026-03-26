@@ -209,9 +209,11 @@ def recall(query: str, limit: int = 5, category: str | None = None) -> str:
     conn = _init_db()
     results = {}
 
-    # 1. FTS5テキスト検索
+    # 1. FTS5テキスト検索（trigram tokenizer用）
     try:
-        fts_query = query.replace('"', '""')
+        # trigramではクエリ全体を引用符で囲んで部分文字列検索
+        # さらに個別キーワードでもOR検索（日本語はスペース分割できないのでそのまま）
+        fts_query = f'"{query}"'
         rows = conn.execute(
             """SELECT rowid, content, category, tags, rank
                FROM memories_fts
@@ -220,6 +222,24 @@ def recall(query: str, limit: int = 5, category: str | None = None) -> str:
                LIMIT ?""",
             (fts_query, limit * 2),
         ).fetchall()
+
+        # ヒットしなければ、短いキーワード（3文字以上）で再検索
+        if not rows and len(query) > 3:
+            # 3文字ずつのサブストリングで検索
+            sub_queries = []
+            for i in range(0, len(query) - 2, 3):
+                sub = query[i:i+3]
+                sub_queries.append(f'"{sub}"')
+            if sub_queries:
+                fts_query = " OR ".join(sub_queries)
+                rows = conn.execute(
+                    """SELECT rowid, content, category, tags, rank
+                       FROM memories_fts
+                       WHERE memories_fts MATCH ?
+                       ORDER BY rank
+                       LIMIT ?""",
+                    (fts_query, limit * 2),
+                ).fetchall()
 
         for rank_idx, row in enumerate(rows):
             rid = row[0]
