@@ -31,6 +31,11 @@ def _load_model():
     return _model, _tokenizer
 
 
+def _count_tokens(tokenizer, text: str) -> int:
+    """テキストのトークン数をカウントする。"""
+    return len(tokenizer.encode(text))
+
+
 def _generate(system_prompt: str, user_prompt: str, max_tokens: int = 512) -> str:
     """FT済みモデルで推論を実行する。"""
     from mlx_lm import generate
@@ -84,8 +89,17 @@ def _safe_generate(system_prompt: str, user_prompt: str, max_tokens: int = 512) 
 
     # 推論実行（マスク済み入力で）
     span_inference = tracer.start_span(trace, "model_inference")
+    _, tokenizer = _load_model()
+    input_tokens = _count_tokens(tokenizer, system_prompt) + _count_tokens(tokenizer, masked_input)
     response = _generate(system_prompt, masked_input, max_tokens)
-    tracer.end_span(span_inference, tokens=len(response))
+    output_tokens = _count_tokens(tokenizer, response)
+    tracer.end_span(
+        span_inference,
+        tokens=output_tokens,
+        input_tokens=input_tokens,
+        output_tokens=output_tokens,
+        total_tokens=input_tokens + output_tokens,
+    )
 
     # キャッシュに保存
     cache_response(system_prompt, masked_input, response)
