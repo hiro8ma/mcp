@@ -8,6 +8,12 @@ This repository contains MCP (Model Context Protocol) server implementations.
 - `recommend_server/` - Recommendation server with cosine similarity
 - `external_api/` - Weather, News, IP info APIs
 - `universal_tools/` - Web search, Python sandbox execution
+- `openapi/` - OpenAPI spec parser MCP server
+- `design_system/` - Design system reference server
+- `image_classifier/` - MNIST digit classifier server
+- `ai_knowledge/` - AI engineering knowledge Q&A (FT model inference + guardrails)
+- `memory/` - Long-term memory server (SQLite + FTS5 + temporal decay)
+- `gateway/` - LiteLLM gateway (pinned to 1.82.6)
 
 ## Development
 
