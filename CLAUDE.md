@@ -1,6 +1,22 @@
 # MCP Research Repository
 
-This repository contains MCP (Model Context Protocol) server implementations.
+## Role
+
+MCP（Model Context Protocol）サーバー群の研究・実装リポジトリ。
+FastMCP を使った各種ドメイン特化サーバーを実装し、AIエンジニアリングの実装力を証明する。
+
+## Prohibited Actions
+
+- センシティブな内容（社名・個人情報・本業の詳細）は書かない（Public リポ）
+- 生の API キー・シークレットをソースコードにハードコードしない
+- `.env` ファイルはリモートにプッシュしない
+- ローカルパス（`/Users/...`）を含むファイルはリモートにプッシュしない
+
+## Guidelines
+
+- ツール定義の `description` は英語で書く。曖昧語（「いい感じに」「適切に」）は使わず具体的に記述する
+- 1サーバー = 1ドメイン。複数ドメインを1サーバーに混ぜない
+- 新しいサーバーを追加する場合は `{server_name}/` ディレクトリを作り、独立した `uv` 環境と `Makefile` を持たせる
 
 ## Structure
 
