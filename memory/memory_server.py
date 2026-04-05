@@ -25,6 +25,10 @@ HALF_LIFE_DAYS = 14  # 時間減衰の半減期
 # Embedding
 _session = None
 
+# Reranker
+_reranker_model = None
+_reranker_tokenizer = None
+
 
 def _get_embedding_session():
     """ONNX Runtimeセッションを遅延初期化。"""
@@ -57,6 +61,61 @@ def _get_embedding_session():
         return _session
     except Exception:
         return None
+
+
+def _get_reranker():
+    """Qwen3-Reranker-0.6B を lazy-load。"""
+    global _reranker_model, _reranker_tokenizer
+    if _reranker_model is None:
+        from transformers import AutoModelForSequenceClassification, AutoTokenizer
+        import torch  # noqa: F811
+
+        model_name = "Qwen/Qwen3-Reranker-0.6B"
+        _reranker_tokenizer = AutoTokenizer.from_pretrained(
+            model_name, trust_remote_code=True
+        )
+        _reranker_model = AutoModelForSequenceClassification.from_pretrained(
+            model_name, trust_remote_code=True
+        )
+        _reranker_model.eval()
+    return _reranker_model, _reranker_tokenizer
+
+
+def _rerank(query: str, results: list[dict], top_k: int = 5) -> list[dict]:
+    """検索結果を Qwen3-Reranker-0.6B でリランクする。
+
+    リランカーが利用できない場合はそのまま返す（graceful degradation）。
+    """
+    if not results:
+        return results
+
+    try:
+        model, tokenizer = _get_reranker()
+    except Exception:
+        return results
+
+    import torch
+
+    pairs = [[query, r["content"]] for r in results]
+
+    with torch.no_grad():
+        inputs = tokenizer(
+            pairs,
+            padding=True,
+            truncation=True,
+            max_length=512,
+            return_tensors="pt",
+        )
+        scores = model(**inputs).logits.squeeze(-1).tolist()
+
+    if isinstance(scores, float):
+        scores = [scores]
+
+    for result, score in zip(results, scores):
+        result["rerank_score"] = score
+
+    reranked = sorted(results, key=lambda x: x["rerank_score"], reverse=True)
+    return reranked[:top_k]
 
 
 def _embed(text: str) -> list[float] | None:
@@ -197,7 +256,7 @@ def remember(content: str, category: str = "general", tags: list[str] | None = N
 
 
 @mcp.tool()
-def recall(query: str, limit: int = 5, category: str | None = None) -> str:
+def recall(query: str, limit: int = 5, category: str | None = None, rerank: bool = True) -> str:
     """
     記憶を検索します。関連する過去の学び・判断・経験を取得します。
 
@@ -205,6 +264,7 @@ def recall(query: str, limit: int = 5, category: str | None = None) -> str:
         query: 検索クエリ
         limit: 取得件数（デフォルト5）
         category: カテゴリで絞り込み（省略時は全カテゴリ）
+        rerank: Qwen3-Reranker によるリランクを適用するか（デフォルトTrue）
     """
     conn = _init_db()
     results = {}
@@ -294,8 +354,14 @@ def recall(query: str, limit: int = 5, category: str | None = None) -> str:
     if category:
         results = {k: v for k, v in results.items() if v["category"] == category}
 
-    # スコア順でソート
+    # スコア順でソート（リランク前の候補取得）
     sorted_results = sorted(results.items(), key=lambda x: x[1]["score"], reverse=True)[:limit]
+
+    # 4. Qwen3-Reranker によるリランク
+    if rerank and sorted_results:
+        candidates = [{"rid": rid, **data} for rid, data in sorted_results]
+        reranked = _rerank(query, candidates, top_k=limit)
+        sorted_results = [(c["rid"], c) for c in reranked]
 
     if not sorted_results:
         conn.close()
@@ -305,10 +371,13 @@ def recall(query: str, limit: int = 5, category: str | None = None) -> str:
     for rid, data in sorted_results:
         tags = json.loads(data["tags"]) if isinstance(data["tags"], str) else data["tags"]
         tags_str = ", ".join(tags) if tags else ""
+        score_parts = [f"score: {data['score']:.3f}"]
+        if "rerank_score" in data:
+            score_parts.append(f"rerank: {data['rerank_score']:.3f}")
         output.append(
             f"[{data['category']}] {data['content']}"
             + (f" (tags: {tags_str})" if tags_str else "")
-            + f" (score: {data['score']:.3f})"
+            + f" ({', '.join(score_parts)})"
         )
 
     conn.close()

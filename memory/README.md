@@ -25,6 +25,7 @@ Query → FTS5 trigram search (Japanese-aware)
      → ONNX embedding → cosine similarity with stored vectors
      → Temporal decay: score × 0.5^(days_since_access / 14)
      → Rank by combined score
+     → Qwen3-Reranker-0.6B rerank (cross-encoder, lazy-loaded)
      → Top-K results returned
 ```
 
@@ -51,6 +52,18 @@ This server implements **hybrid search**, combining full-text search and vector 
 | **Strengths** | Semantic similarity, handles paraphrasing, cross-lingual matching |
 | **Weaknesses** | Higher memory usage, may miss exact terms in favor of related concepts |
 | **Query style** | Natural language sentences |
+
+### Reranking (Qwen3-Reranker-0.6B)
+
+| Aspect | Detail |
+|---|---|
+| **Engine** | Qwen3-Reranker-0.6B (cross-encoder, lazy-loaded via Transformers + PyTorch) |
+| **Matching** | Cross-attention between query and each candidate |
+| **Strengths** | Fine-grained relevance scoring, captures query-document interaction that bi-encoders miss |
+| **Weaknesses** | Slower than bi-encoder (runs per candidate pair), larger model footprint |
+| **Graceful degradation** | If model download fails or PyTorch is unavailable, reranking is skipped silently |
+
+Reranking runs after hybrid scoring as a second-stage filter. The `recall()` tool accepts a `rerank` parameter (default `True`) to enable/disable it. Results include a `rerank` score when active.
 
 ### Why Hybrid?
 
