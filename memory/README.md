@@ -28,6 +28,38 @@ Query → FTS5 trigram search (Japanese-aware)
      → Top-K results returned
 ```
 
+## Search Characteristics
+
+This server implements **hybrid search**, combining full-text search and vector search to leverage the strengths of both approaches.
+
+### Full-Text Search (FTS5 + Trigram)
+
+| Aspect | Detail |
+|---|---|
+| **Engine** | SQLite FTS5 with trigram tokenizer |
+| **Matching** | Token-level exact matching |
+| **Strengths** | Exact keyword match, specific terms, proper nouns, Japanese text support |
+| **Weaknesses** | Vocabulary mismatch ("car" won't match "vehicle"), no semantic understanding |
+| **Query style** | Short keywords (2-4 terms) |
+
+### Vector Search (ONNX Embeddings)
+
+| Aspect | Detail |
+|---|---|
+| **Engine** | ONNX Runtime + all-MiniLM-L6-v2 (384-dim) |
+| **Matching** | Cosine similarity between embedding vectors |
+| **Strengths** | Semantic similarity, handles paraphrasing, cross-lingual matching |
+| **Weaknesses** | Higher memory usage, may miss exact terms in favor of related concepts |
+| **Query style** | Natural language sentences |
+
+### Why Hybrid?
+
+Neither approach alone is sufficient:
+- Full-text search misses semantically similar content with different wording
+- Vector search may rank loosely related content above exact matches
+
+By combining both scores with temporal decay weighting, the hybrid approach provides more robust recall across different query patterns.
+
 ## Quick Start
 
 ```bash

@@ -45,3 +45,26 @@ search("Apple製品", top_k=5)
 
 - **ChromaDB**: ベクトルデータベース（永続化対応）
 - **all-MiniLM-L6-v2**: Embeddingモデル（ローカル実行）
+
+## Search Characteristics
+
+This server implements **vector search** using ChromaDB.
+
+| Aspect | Detail |
+|---|---|
+| **Engine** | ChromaDB with HNSW index (cosine distance) |
+| **Embedding** | sentence-transformers all-MiniLM-L6-v2 |
+| **Matching** | Approximate Nearest Neighbor (HNSW) + cosine similarity |
+| **Strengths** | Persistent storage, fast ANN search, metadata filtering, semantic matching |
+| **Weaknesses** | Requires ChromaDB process, higher memory for HNSW index |
+| **Query style** | Natural language descriptions |
+
+### Comparison with memory/ server
+
+| Feature | recommend_server | memory/ |
+|---|---|---|
+| Storage | ChromaDB (persistent) | SQLite (persistent) |
+| Full-text search | No | Yes (FTS5 trigram) |
+| Vector search | Yes (HNSW) | Yes (ONNX brute-force) |
+| Temporal decay | No | Yes (14-day half-life) |
+| Use case | Item recommendations | Long-term memory with recency |
