@@ -119,16 +119,10 @@ def _safe_generate(system_prompt: str, user_prompt: str, max_tokens: int = 512) 
 
 @mcp.tool()
 def ask_ai_engineering(question: str) -> str:
-    """AIエンジニアリングに関する質問に回答します。
-
-    RAG、評価パイプライン、プロンプトエンジニアリング、エージェント設計、
-    ファインチューニングなどのトピックについて、
-    FT済みローカルモデルが実務に即した回答を生成します。
-    入力/出力ガードレール付き。
-
-    Args:
-        question: AIエンジニアリングに関する質問
-    """
+    """Purpose: Answer AI engineering questions using a fine-tuned local model (Gemma 3 4B + LoRA) with guardrails.
+    Use when: The user asks about RAG, evaluation pipelines, prompt engineering, agent design, fine-tuning, or other AI engineering topics.
+    Do not use when: The question is about general programming, non-AI topics, or requires real-time/up-to-date information beyond the model's knowledge.
+    Notes: Includes input/output guardrails (injection detection, PII masking) and response caching. Runs locally on Apple Silicon via MLX."""
     return _safe_generate(
         system_prompt="あなたはAIエンジニアリングの専門家です。技術的に正確で、実務に即した回答をしてください。",
         user_prompt=question,
@@ -137,13 +131,10 @@ def ask_ai_engineering(question: str) -> str:
 
 @mcp.tool()
 def quiz_ai_engineering(topic: str) -> str:
-    """AIエンジニアリングのトピックについてクイズ形式で出題します。
-
-    指定されたトピックについて、理解度を確認するための質問を生成します。
-
-    Args:
-        topic: クイズのトピック（例: RAG, 評価パイプライン, エージェント, LoRA）
-    """
+    """Purpose: Generate a quiz question with a model answer on an AI engineering topic.
+    Use when: The user wants to test or reinforce their understanding of a specific AI engineering concept.
+    Do not use when: The user wants a direct explanation (use explain_concept) or an open-ended answer (use ask_ai_engineering).
+    Notes: Produces one question plus a model answer. No guardrails applied (uses raw generation)."""
     return _generate(
         system_prompt="あなたはAIエンジニアリングの講師です。指定されたトピックについて、理解度を確認するための質問を1つ出題してください。質問の後に、模範回答も提供してください。",
         user_prompt=f"トピック: {topic}",
@@ -152,12 +143,10 @@ def quiz_ai_engineering(topic: str) -> str:
 
 @mcp.tool()
 def explain_concept(concept: str, depth: str = "intermediate") -> str:
-    """AIエンジニアリングの概念を指定された深さで説明します。
-
-    Args:
-        concept: 説明する概念（例: LoRA, ReAct, ハイブリッド検索, 量子化）
-        depth: 説明の深さ（beginner, intermediate, advanced）
-    """
+    """Purpose: Explain an AI engineering concept at a specified depth level.
+    Use when: The user asks "what is X?" or needs a concept explained at beginner, intermediate, or advanced level.
+    Do not use when: The user needs a practical how-to answer (use ask_ai_engineering) or wants to test themselves (use quiz_ai_engineering).
+    Notes: Depth levels are beginner (simple with examples), intermediate (technical details), advanced (paper-level with trade-offs)."""
     depth_map = {
         "beginner": "初心者にもわかるように、具体例を交えて簡潔に",
         "intermediate": "実務経験のあるエンジニア向けに、技術的な詳細を含めて",

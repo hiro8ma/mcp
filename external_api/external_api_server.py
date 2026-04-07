@@ -33,7 +33,10 @@ def make_api_request(url: str, params: dict = None, headers: dict = None) -> dic
 
 @mcp.tool()
 def get_weather(city: str, country_code: str = "JP") -> dict:
-    """指定した都市の現在の天気を取得します"""
+    """Purpose: Fetch current weather conditions for a given city via OpenWeatherMap.
+    Use when: The user asks about current weather, temperature, humidity, or wind for a specific city.
+    Do not use when: The user asks about future weather (use get_weather_forecast instead).
+    Notes: Returns temperature in Celsius. Defaults to Japan (JP) country code. Requires OPENWEATHER_API_KEY."""
     if not OPENWEATHER_API_KEY:
         raise ValueError("OpenWeatherMap APIキーが設定されていません")
 
@@ -64,7 +67,10 @@ def get_weather(city: str, country_code: str = "JP") -> dict:
 
 @mcp.tool()
 def get_weather_forecast(city: str, days: int = 5, country_code: str = "JP") -> dict:
-    """指定した都市の天気予報を取得します"""
+    """Purpose: Fetch a multi-day weather forecast (up to 5 days, 3-hour intervals) for a given city.
+    Use when: The user asks about upcoming weather, whether to bring an umbrella tomorrow, or multi-day planning.
+    Do not use when: The user only needs current conditions (use get_weather instead).
+    Notes: Days parameter must be 1-5. Returns 3-hour interval forecasts grouped by day. Requires OPENWEATHER_API_KEY."""
     if not OPENWEATHER_API_KEY:
         raise ValueError("OpenWeatherMap APIキーが設定されていません")
 
@@ -119,7 +125,10 @@ def get_weather_forecast(city: str, days: int = 5, country_code: str = "JP") -> 
 
 @mcp.tool()
 def get_latest_news(category: str = "general", country: str = "us", limit: int = 5) -> dict:
-    """最新ニュースを取得します"""
+    """Purpose: Fetch top headlines by category and country via NewsAPI.
+    Use when: The user wants to browse trending or top news in a specific category (general, business, technology, etc.).
+    Do not use when: The user wants to search for news about a specific topic or keyword (use search_news instead).
+    Notes: Categories: general, business, entertainment, health, science, sports, technology. Max 20 articles. Requires NEWS_API_KEY."""
     if not NEWS_API_KEY:
         raise ValueError("NewsAPI APIキーが設定されていません")
 
@@ -158,7 +167,10 @@ def get_latest_news(category: str = "general", country: str = "us", limit: int =
 
 @mcp.tool()
 def search_news(query: str, language: str = "en", limit: int = 5) -> dict:
-    """キーワードでニュースを検索します"""
+    """Purpose: Search news articles by keyword across all sources via NewsAPI.
+    Use when: The user wants news about a specific topic, event, company, or keyword.
+    Do not use when: The user wants general top headlines without a specific query (use get_latest_news instead).
+    Notes: Sorted by publication date (newest first). Max 20 articles. Supports language filtering. Requires NEWS_API_KEY."""
     if not NEWS_API_KEY:
         raise ValueError("NewsAPI APIキーが設定されていません")
 
@@ -197,7 +209,10 @@ def search_news(query: str, language: str = "en", limit: int = 5) -> dict:
 
 @mcp.tool()
 def get_ip_info(ip_address: Optional[str] = None) -> dict:
-    """IPアドレスの地理的情報やプロバイダ情報を取得します"""
+    """Purpose: Look up geolocation and ISP information for an IP address.
+    Use when: The user wants to know the geographic location, ISP, or organization behind an IP address.
+    Do not use when: The user needs weather or news information (use the appropriate weather/news tools).
+    Notes: If no IP is provided, returns info for the server's own public IP. Uses the free ip-api.com service (no API key required)."""
     if ip_address:
         url = f"http://ip-api.com/json/{ip_address}"
     else:

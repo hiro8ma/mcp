@@ -227,14 +227,10 @@ def _cosine_similarity(a: list[float], b: list[float]) -> float:
 
 @mcp.tool()
 def remember(content: str, category: str = "general", tags: list[str] | None = None) -> str:
-    """
-    記憶を保存します。会話・学び・判断・経験などを蓄積してください。
-
-    Args:
-        content: 記憶する内容
-        category: カテゴリ（learning, decision, experience, insight等）
-        tags: タグのリスト
-    """
+    """Purpose: Save a memory for long-term retention across sessions.
+    Use when: The user shares important information, decisions, learnings, or experiences worth remembering later.
+    Do not use when: The information is ephemeral, only relevant to the current turn, or already stored.
+    Notes: Use category (learning, decision, experience, insight) and tags for better recall. Content is automatically embedded for vector search."""
     conn = _init_db()
     now = time.time()
     tags_json = json.dumps(tags or [], ensure_ascii=False)
@@ -257,15 +253,10 @@ def remember(content: str, category: str = "general", tags: list[str] | None = N
 
 @mcp.tool()
 def recall(query: str, limit: int = 5, category: str | None = None, rerank: bool = True) -> str:
-    """
-    記憶を検索します。関連する過去の学び・判断・経験を取得します。
-
-    Args:
-        query: 検索クエリ
-        limit: 取得件数（デフォルト5）
-        category: カテゴリで絞り込み（省略時は全カテゴリ）
-        rerank: Qwen3-Reranker によるリランクを適用するか（デフォルトTrue）
-    """
+    """Purpose: Search past memories using hybrid retrieval (FTS5 + vector similarity + temporal decay + reranking).
+    Use when: You need to retrieve previously stored knowledge, decisions, or experiences relevant to the current context.
+    Do not use when: The user is asking about general knowledge not stored in memory, or when you need real-time external information.
+    Notes: Set category to filter by type. Reranking (Qwen3-Reranker) is on by default for better relevance. Accessing a memory refreshes its decay timer."""
     conn = _init_db()
     results = {}
 
@@ -386,13 +377,10 @@ def recall(query: str, limit: int = 5, category: str | None = None, rerank: bool
 
 @mcp.tool()
 def forget(memory_id: int | None = None, older_than_days: int | None = None) -> str:
-    """
-    記憶を削除します。IDで個別削除、または経過日数で一括削除できます。
-
-    Args:
-        memory_id: 削除する記憶のID（省略時はolder_than_daysで一括削除）
-        older_than_days: 指定日数以上アクセスされていない記憶を一括削除
-    """
+    """Purpose: Delete memories by ID or by staleness (days since last access).
+    Use when: The user explicitly asks to remove a specific memory, or to clean up old/outdated memories.
+    Do not use when: The user has not explicitly requested deletion. Never proactively delete memories.
+    Notes: Provide either memory_id for single deletion or older_than_days for bulk cleanup. At least one parameter is required."""
     conn = _init_db()
 
     if memory_id is not None:
@@ -416,7 +404,9 @@ def forget(memory_id: int | None = None, older_than_days: int | None = None) -> 
 
 @mcp.tool()
 def memory_stats() -> str:
-    """記憶の統計情報を返します。"""
+    """Purpose: Return summary statistics about stored memories (total count, categories, embedding coverage).
+    Use when: The user wants to understand how many memories are stored, their distribution, or the health of the memory system.
+    Do not use when: The user wants to search or retrieve specific memories (use recall instead)."""
     conn = _init_db()
 
     total = conn.execute("SELECT COUNT(*) FROM memories").fetchone()[0]
