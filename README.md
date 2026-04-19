@@ -2,6 +2,10 @@
 
 A collection of MCP (Model Context Protocol) server implementations built with [FastMCP](https://github.com/jlowin/fastmcp). 14 servers covering AI/ML, external APIs, development tools, and educational notebooks.
 
+## Role in the Ecosystem
+
+This repo is the **Tool provider layer**. MCP servers here are consumed by AI agents implemented in [`../agent/`](../agent/) (Go / Python / TypeScript across multiple frameworks). See `../agent/` for the AI agent side (LLM invocation, Tool Dispatch loop, conversation history, prompt management).
+
 ## Servers
 
 ### AI / ML
