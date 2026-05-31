@@ -4,7 +4,13 @@ A collection of MCP (Model Context Protocol) server implementations built with [
 
 ## Role in the Ecosystem
 
-This repo is the **Tool provider layer**. MCP servers here are consumed by AI agents implemented in [`../agent/`](../agent/) (Go / Python / TypeScript across multiple frameworks). See `../agent/` for the AI agent side (LLM invocation, Tool Dispatch loop, conversation history, prompt management).
+This repo is the **capability layer (MCP server side)**. It exposes tools / data / resources over the MCP standard so that *any* MCP client (Claude Desktop, Cursor, or the agents in [`../agent/`](../agent/)) can reuse them. The consumer / reasoning side (LLM invocation, Tool Dispatch loop, conversation history, prompt management) lives in `../agent/`.
+
+### Boundary rules (server side)
+
+- **One-way dependency**: `agent/ → mcp/` only. This repo never imports the consumer side — a server does not know who calls it (that is the whole point of MCP).
+- **Each server runs standalone**: usable from any MCP client, never coupled to a specific agent.
+- **Connection config lives on the client**: which server to connect to and over which transport is the client's concern, not the server's.
 
 ## Servers
 
