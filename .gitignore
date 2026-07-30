@@ -18,3 +18,4 @@ chroma_data/
 .playwright-mcp/
 claude_desktop_config.json
 ai_platform/config/mcp_servers.json
+weather_go/weather_go
