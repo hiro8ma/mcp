@@ -28,6 +28,7 @@ This repo is the **capability layer (MCP server side)**. It exposes tools / data
 | Server | Description | Tools |
 |---|---|---|
 | `external_api/` | Weather (OpenWeatherMap), News (NewsAPI), IP geolocation | `get_weather`, `get_weather_forecast`, `get_latest_news`, `search_news`, `get_ip_info` |
+| `weather_go/` | Weather via Open-Meteo (no API key). **Go implementation** with the official [go-sdk](https://github.com/modelcontextprotocol/go-sdk), stdio + Streamable HTTP | `get_current_weather`, `get_weekly_forecast` |
 | `openapi/` | OpenAPI spec parser + dynamic API execution | `list_endpoints`, `get_endpoint_detail`, `call_api` |
 | `gateway/` | LiteLLM proxy for unified LLM API access (Gemini / Claude / GPT fallback). Pinned to v1.82.6 for supply chain security | — |
 
