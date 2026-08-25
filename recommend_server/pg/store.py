@@ -14,7 +14,16 @@ from typing import Iterable, Iterator, Sequence
 import psycopg
 from pgvector.psycopg import register_vector
 
-DSN = os.getenv("PG_DSN", "postgresql://postgres:lab@localhost:5433/ixlab")
+# 接続は 2 系統に分ける。
+#
+# OWNER_DSN はスキーマ作成と索引の張り替え用。テーブル所有者の権限が要る。
+# APP_DSN は検索と投入用で、非特権ロールを使う。
+#
+# 分けるのは Row Level Security の都合による。RLS は superuser とテーブル所有者を
+# バイパスするため、所有者で接続したままだとテナント分離が働かない。
+# 所有者の接続を管理操作だけに閉じ込めることで、通常の読み書きが必ず RLS を通る。
+OWNER_DSN = os.getenv("PG_OWNER_DSN", "postgresql://postgres:lab@localhost:15433/ixlab")
+APP_DSN = os.getenv("PG_APP_DSN", "postgresql://app_user:lab@localhost:15433/ixlab")
 EMBEDDING_DIM = 384
 
 
@@ -36,9 +45,13 @@ class Hit:
 
 
 @contextmanager
-def connect(tenant_id: str | None = None) -> Iterator[psycopg.Connection]:
-    """接続を開き、テナントを指定した場合は RLS 用のセッション変数を立てる。"""
-    with psycopg.connect(DSN) as conn:
+def connect(tenant_id: str | None = None, *, owner: bool = False) -> Iterator[psycopg.Connection]:
+    """接続を開き、テナントを指定した場合は RLS 用のセッション変数を立てる。
+
+    owner=True はスキーマ作成と索引の張り替え専用。所有者権限が要る操作に限る。
+    通常の読み書きは非特権ロールで接続し、RLS を通す。
+    """
+    with psycopg.connect(OWNER_DSN if owner else APP_DSN) as conn:
         register_vector(conn)
         if tenant_id is not None:
             # SET LOCAL ではなく SET を使う。コネクション単位で有効にしたいため。
@@ -47,11 +60,12 @@ def connect(tenant_id: str | None = None) -> Iterator[psycopg.Connection]:
 
 
 def init_schema() -> None:
-    schema = os.path.join(os.path.dirname(__file__), "schema.sql")
-    with open(schema, encoding="utf-8") as f:
-        sql = f.read()
-    with connect() as conn:
-        conn.execute(sql)
+    """スキーマとアプリ用ロールを作る。所有者権限で実行する。"""
+    here = os.path.dirname(__file__)
+    with connect(owner=True) as conn:
+        for name in ("schema.sql", "setup_role.sql"):
+            with open(os.path.join(here, name), encoding="utf-8") as f:
+                conn.execute(f.read())
         conn.commit()
 
 
@@ -131,7 +145,7 @@ def get_embedding(tenant_id: str, item_id: str) -> list[float] | None:
 
 def create_index(kind: str, *, lists: int = 100, m: int = 16, ef_construction: int = 64) -> None:
     """索引を張り直す。kind は "hnsw" か "ivfflat" か "none"。"""
-    with connect() as conn:
+    with connect(owner=True) as conn:
         conn.execute("DROP INDEX IF EXISTS items_embedding_idx")
         if kind == "hnsw":
             conn.execute(
@@ -150,15 +164,18 @@ def create_index(kind: str, *, lists: int = 100, m: int = 16, ef_construction: i
 
 
 def count(tenant_id: str | None = None) -> int:
+    if tenant_id is None:
+        # 全テナント横断の件数は RLS を通せないため所有者権限で読む。
+        with connect(owner=True) as conn:
+            return int(conn.execute("SELECT count(*) FROM items").fetchone()[0])
+
     with connect(tenant_id) as conn:
-        if tenant_id is None:
-            row = conn.execute("SELECT count(*) FROM items").fetchone()
-        else:
-            row = conn.execute("SELECT count(*) FROM items WHERE tenant_id = %s", (tenant_id,)).fetchone()
+        row = conn.execute("SELECT count(*) FROM items WHERE tenant_id = %s", (tenant_id,)).fetchone()
     return int(row[0])
 
 
 def tenants() -> list[str]:
-    with connect() as conn:
+    """全テナントの一覧。RLS を通さないため所有者権限で読む。"""
+    with connect(owner=True) as conn:
         rows = conn.execute("SELECT DISTINCT tenant_id FROM items ORDER BY tenant_id").fetchall()
     return [r[0] for r in rows]
