@@ -80,21 +80,31 @@ def build_shelves(
     group_by が "category" ならカタログの分類、"cluster" なら埋め込みの近さで割る。
     """
     vector = embed.encode_one(query)
-    hits = store.search(tenant_id, vector, top_k=candidates)
-    if not hits:
-        return {"query": query, "shelves": [], "candidates": 0}
+    want_cluster = group_by == "cluster"
 
-    if group_by == "cluster":
-        vectors = [store.get_embedding(tenant_id, h.item_id) or [] for h in hits]
-        shelves = shelf.by_cluster(hits, vectors, per_shelf, max_shelves)
-    else:
-        shelves = shelf.by_category(hits, per_shelf, max_shelves)
+    # クラスタ経路で必要な埋め込みは、この 1 クエリで一緒に取る。
+    # 1 件ずつ取り直すと候補数ぶんの接続が発生する。
+    hits = store.search(tenant_id, vector, top_k=candidates, with_embeddings=want_cluster)
+    if not hits:
+        return {"query": query, "candidates": 0, "group_by": group_by, "shelves": []}
+
+    shelves = (
+        shelf.by_cluster(hits, per_shelf, max_shelves)
+        if want_cluster
+        else shelf.by_category(hits, per_shelf, max_shelves)
+    )
+
+    def render(h: store.Hit) -> dict[str, Any]:
+        # 埋め込みは棚組みの内部でしか使わない。応答には載せない。
+        d = h.__dict__.copy()
+        d.pop("embedding", None)
+        return d
 
     return {
         "query": query,
         "candidates": len(hits),
         "group_by": group_by,
-        "shelves": [{"title": s.title, "items": [h.__dict__ for h in s.items]} for s in shelves],
+        "shelves": [{"title": s.title, "items": [render(h) for h in s.items]} for s in shelves],
     }
 
 

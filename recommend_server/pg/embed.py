@@ -18,6 +18,16 @@ def _model():
     return SentenceTransformer(MODEL_NAME)
 
 
+def dimension() -> int:
+    """モデルが出すベクトルの次元。
+
+    スキーマの vector(N) はこの値から組み立てる。
+    定数を別に置くと、モデルを変えたときに投入時まで不整合に気づけない。
+    しかも失敗するのは行ごとの次元不一致エラーで、原因を辿りにくい。
+    """
+    return int(_model().get_sentence_embedding_dimension())
+
+
 def encode(texts: Sequence[str]) -> list[list[float]]:
     vectors = _model().encode(list(texts), normalize_embeddings=True, show_progress_bar=False)
     return [v.tolist() for v in vectors]

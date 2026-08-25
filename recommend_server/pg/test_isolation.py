@@ -10,9 +10,9 @@ import psycopg
 import pytest
 from pgvector.psycopg import register_vector
 
-from . import store
+from . import embed, store
 
-DIM = store.EMBEDDING_DIM
+DIM = embed.dimension()
 
 
 def _vec(seed: float) -> list[float]:
@@ -50,6 +50,15 @@ def test_rls_blocks_without_tenant_setting():
         register_vector(conn)
         n = conn.execute("SELECT count(*) FROM items").fetchone()[0]
     assert n == 0, f"RLS が効いていない。{n} 件見えている"
+
+
+def test_dimension_matches_schema():
+    """スキーマの次元とモデルの次元が一致していることを確かめる。
+
+    モデルを差し替えたときに、投入時の行ごとのエラーではなく
+    ここで落ちるようにしておく。
+    """
+    store.assert_dimension_matches()
 
 
 def test_app_role_is_not_superuser():

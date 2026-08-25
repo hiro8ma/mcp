@@ -24,7 +24,6 @@ from pgvector.psycopg import register_vector
 # 所有者の接続を管理操作だけに閉じ込めることで、通常の読み書きが必ず RLS を通る。
 OWNER_DSN = os.getenv("PG_OWNER_DSN", "postgresql://postgres:lab@localhost:15433/ixlab")
 APP_DSN = os.getenv("PG_APP_DSN", "postgresql://app_user:lab@localhost:15433/ixlab")
-EMBEDDING_DIM = 384
 
 
 @dataclass(frozen=True)
@@ -42,6 +41,17 @@ class Hit:
     title: str
     category: str | None
     similarity: float
+    # クラスタリングのように埋め込みを必要とする処理向け。
+    # 既定では載せない。1 件あたり数百次元あり、返す件数が多いと無駄が大きい。
+    embedding: tuple[float, ...] | None = None
+
+
+def _to_tuple(v) -> tuple[float, ...]:
+    for attr in ("to_list", "tolist"):
+        fn = getattr(v, attr, None)
+        if callable(fn):
+            return tuple(fn())
+    return tuple(v)
 
 
 @contextmanager
@@ -54,19 +64,50 @@ def connect(tenant_id: str | None = None, *, owner: bool = False) -> Iterator[ps
     with psycopg.connect(OWNER_DSN if owner else APP_DSN) as conn:
         register_vector(conn)
         if tenant_id is not None:
-            # SET LOCAL ではなく SET を使う。コネクション単位で有効にしたいため。
+            # 第 3 引数 false は「トランザクションではなくセッションに設定する」意味。
+            # ただしこの接続は with を抜けた時点で閉じるため、実質は 1 呼び出しの寿命しかない。
+            # 接続をプールして使い回す形にするなら、ここの選択が意味を持つ。
             conn.execute("SELECT set_config('app.tenant_id', %s, false)", (tenant_id,))
         yield conn
 
 
 def init_schema() -> None:
-    """スキーマとアプリ用ロールを作る。所有者権限で実行する。"""
+    """スキーマとアプリ用ロールを作る。所有者権限で実行する。
+
+    ベクトルの次元は埋め込みモデルから引く。DDL に数字を直書きすると、
+    モデルを差し替えたときに投入時まで不整合に気づけない。
+    """
+    from . import embed
+
     here = os.path.dirname(__file__)
     with connect(owner=True) as conn:
-        for name in ("schema.sql", "setup_role.sql"):
-            with open(os.path.join(here, name), encoding="utf-8") as f:
-                conn.execute(f.read())
+        with open(os.path.join(here, "schema.sql"), encoding="utf-8") as f:
+            conn.execute(f.read().replace("{{DIM}}", str(embed.dimension())))
+        with open(os.path.join(here, "setup_role.sql"), encoding="utf-8") as f:
+            conn.execute(f.read())
         conn.commit()
+    assert_dimension_matches()
+
+
+def assert_dimension_matches() -> None:
+    """既存テーブルの次元と、いま使うモデルの次元が一致することを確かめる。
+
+    次元が同じ別モデルに差し替えた場合はここでは検出できない。
+    そちらは items.embedding_model に記録して照合する。
+    """
+    from . import embed
+
+    want = embed.dimension()
+    with connect(owner=True) as conn:
+        row = conn.execute(
+            "SELECT atttypmod FROM pg_attribute "
+            "WHERE attrelid = 'items'::regclass AND attname = 'embedding'"
+        ).fetchone()
+    if row and row[0] not in (-1, want):
+        raise RuntimeError(
+            f"既存テーブルの次元 {row[0]} と、モデル {embed.MODEL_NAME} の次元 {want} が食い違う。"
+            f"テーブルを作り直すか、モデルを戻す必要がある。"
+        )
 
 
 def upsert(tenant_id: str, items: Sequence[Item], embeddings: Sequence[Sequence[float]]) -> int:
@@ -104,13 +145,22 @@ def search(
     top_k: int = 100,
     category: str | None = None,
     exclude_item_id: str | None = None,
+    with_embeddings: bool = False,
 ) -> list[Hit]:
     """コサイン距離で近傍を取る。
 
     `<=>` はコサイン距離なので、類似度は 1 から引いて求める。
+
+    with_embeddings=True にすると各行の埋め込みも返す。
+    このクエリが読んだ行にすでに載っているものなので、
+    呼び出し元が 1 件ずつ取り直すより 1 クエリで済む。
     """
+    cols = "item_id, title, category, 1 - (embedding <=> %s::vector) AS similarity"
+    if with_embeddings:
+        cols += ", embedding"
+
     sql = [
-        "SELECT item_id, title, category, 1 - (embedding <=> %s::vector) AS similarity",
+        f"SELECT {cols}",
         "FROM items",
         "WHERE tenant_id = %s",
     ]
@@ -131,7 +181,18 @@ def search(
     with connect(tenant_id) as conn:
         rows = conn.execute("\n".join(sql), params).fetchall()
 
-    return [Hit(item_id=r[0], title=r[1], category=r[2], similarity=round(float(r[3]), 4)) for r in rows]
+    return [
+        Hit(
+            item_id=r[0],
+            title=r[1],
+            category=r[2],
+            similarity=round(float(r[3]), 4),
+            # pgvector が返す Vector は直接反復できないため list に落とす。
+            # numpy 配列で返る場合もあるので tolist / to_list の両方を見る。
+            embedding=_to_tuple(r[4]) if with_embeddings else None,
+        )
+        for r in rows
+    ]
 
 
 def get_embedding(tenant_id: str, item_id: str) -> list[float] | None:
@@ -141,26 +202,6 @@ def get_embedding(tenant_id: str, item_id: str) -> list[float] | None:
             (tenant_id, item_id),
         ).fetchone()
     return list(row[0]) if row else None
-
-
-def create_index(kind: str, *, lists: int = 100, m: int = 16, ef_construction: int = 64) -> None:
-    """索引を張り直す。kind は "hnsw" か "ivfflat" か "none"。"""
-    with connect(owner=True) as conn:
-        conn.execute("DROP INDEX IF EXISTS items_embedding_idx")
-        if kind == "hnsw":
-            conn.execute(
-                f"CREATE INDEX items_embedding_idx ON items "
-                f"USING hnsw (embedding vector_cosine_ops) "
-                f"WITH (m = {m}, ef_construction = {ef_construction})"
-            )
-        elif kind == "ivfflat":
-            conn.execute(
-                f"CREATE INDEX items_embedding_idx ON items "
-                f"USING ivfflat (embedding vector_cosine_ops) WITH (lists = {lists})"
-            )
-        elif kind != "none":
-            raise ValueError(f"未知の索引種別: {kind}")
-        conn.commit()
 
 
 def count(tenant_id: str | None = None) -> int:

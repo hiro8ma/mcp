@@ -34,7 +34,6 @@ def by_category(hits: Sequence[Hit], per_shelf: int, max_shelves: int) -> list[S
 
 def by_cluster(
     hits: Sequence[Hit],
-    embeddings: Sequence[Sequence[float]],
     per_shelf: int,
     max_shelves: int,
 ) -> list[Shelf]:
@@ -42,18 +41,27 @@ def by_cluster(
 
     カテゴリ分けと違い、カタログ側の分類に縛られない切り口が出る。
     そのかわりグループ名を機械的に決められないため、代表アイテムの題名を借りる。
+
+    候補が max_shelves より少ない場合は、カテゴリ分けに切り替えるのではなく
+    クラスタ数のほうを候補数まで下げる。k-means の制約は n_samples >= n_clusters
+    というだけで、要求された「埋め込みの近さで割る」という軸は保てる。
+    軸ごと変えてしまうと、呼び出し元は cluster で組んだつもりでカテゴリ棚を受け取る。
     """
     import numpy as np
     from sklearn.cluster import KMeans
 
-    if len(hits) < max_shelves:
-        return by_category(hits, per_shelf, max_shelves)
+    usable = [h for h in hits if h.embedding is not None]
+    if not usable:
+        raise ValueError(
+            "埋め込みが載っていない。store.search(..., with_embeddings=True) で取得する必要がある"
+        )
 
-    matrix = np.asarray(embeddings, dtype="float32")
-    km = KMeans(n_clusters=max_shelves, n_init=4, random_state=0).fit(matrix)
+    k = min(max_shelves, len(usable))
+    matrix = np.asarray([h.embedding for h in usable], dtype="float32")
+    km = KMeans(n_clusters=k, n_init=4, random_state=0).fit(matrix)
 
     buckets: dict[int, list[Hit]] = defaultdict(list)
-    for label, hit in zip(km.labels_, hits):
+    for label, hit in zip(km.labels_, usable):
         buckets[int(label)].append(hit)
 
     shelves: list[Shelf] = []

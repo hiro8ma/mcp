@@ -10,7 +10,36 @@ import argparse
 import statistics
 import time
 
-from . import embed, seed, store
+from . import embed, store
+
+
+def _rebuild_index(kind: str, *, lists: int = 100, m: int = 16, ef_construction: int = 64) -> None:
+    """索引を張り直す。計測専用。
+
+    DROP してから CREATE するため、その間は索引が存在せず逐次スキャンに落ちる。
+    さらに CONCURRENTLY を付けない CREATE INDEX は ACCESS EXCLUSIVE ロックを取り、
+    構築が終わるまで読み書きが止まる。本番の張り替えには使えない。
+
+    運用で張り替えるなら、CREATE INDEX CONCURRENTLY で別名の索引を作ってから
+    古いほうを DROP INDEX CONCURRENTLY する。索引が存在しない時間帯を作らない。
+    """
+    if kind not in ("hnsw", "ivfflat", "none"):
+        raise ValueError(f"未知の索引種別: {kind}")
+
+    with store.connect(owner=True) as conn:
+        conn.execute("DROP INDEX IF EXISTS items_embedding_idx")
+        if kind == "hnsw":
+            conn.execute(
+                "CREATE INDEX items_embedding_idx ON items "
+                "USING hnsw (embedding vector_cosine_ops) "
+                "WITH (m = %s, ef_construction = %s)" % (int(m), int(ef_construction))
+            )
+        elif kind == "ivfflat":
+            conn.execute(
+                "CREATE INDEX items_embedding_idx ON items "
+                "USING ivfflat (embedding vector_cosine_ops) WITH (lists = %s)" % int(lists)
+            )
+        conn.commit()
 
 QUERIES = [
     "秋冬に着られる暖かいアウター",
@@ -58,13 +87,13 @@ def main() -> None:
     print(f"対象 {total} 件 / top_k={args.top_k} / クエリ {len(QUERIES)} 本\n")
     vectors = embed.encode(QUERIES)
 
-    store.create_index("none")
+    _rebuild_index("none")
     truth, base_ms = _run(args.tenant, vectors, args.top_k)
     print(f"{'索引':<10}{'再現率':>10}{'中央値 ms':>12}{'対 exact':>12}")
     print(f"{'なし':<10}{1.0:>10.3f}{base_ms:>12.1f}{'1.00x':>12}")
 
     for kind, kwargs in (("ivfflat", {"lists": args.lists}), ("hnsw", {})):
-        store.create_index(kind, **kwargs)
+        _rebuild_index(kind, **kwargs)
         got, ms = _run(args.tenant, vectors, args.top_k)
         print(f"{kind:<10}{recall(truth, got):>10.3f}{ms:>12.1f}{base_ms / ms:>11.2f}x")
 
