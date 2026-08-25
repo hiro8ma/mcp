@@ -27,3 +27,10 @@ weather_go/weather_go
 *.pfx
 secrets/
 credentials/
+
+# データベース・モデルの実体（成果物であってソースではない）
+*.db
+*.sqlite
+*.sqlite3
+model/
+chroma_data/

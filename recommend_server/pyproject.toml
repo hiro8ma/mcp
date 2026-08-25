@@ -9,4 +9,8 @@ dependencies = [
     "fastmcp>=2.14.2",
     "chromadb>=0.4.0",
     "sentence-transformers>=2.2.0",
+    "psycopg[binary]>=3.2",
+    "pgvector>=0.3",
+    "numpy>=1.26",
+    "scikit-learn>=1.5",
 ]
