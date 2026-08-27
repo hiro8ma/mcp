@@ -85,6 +85,9 @@ def init_schema() -> None:
             conn.execute(f.read().replace("{{DIM}}", str(embed.dimension())))
         with open(os.path.join(here, "setup_role.sql"), encoding="utf-8") as f:
             conn.execute(f.read())
+        # 行動履歴は setup_role のあとに作る。GRANT が app_user の存在を前提にする。
+        with open(os.path.join(here, "schema_interactions.sql"), encoding="utf-8") as f:
+            conn.execute(f.read())
         conn.commit()
     assert_dimension_matches()
 
@@ -201,7 +204,26 @@ def get_embedding(tenant_id: str, item_id: str) -> list[float] | None:
             "SELECT embedding FROM items WHERE tenant_id = %s AND item_id = %s",
             (tenant_id, item_id),
         ).fetchone()
-    return list(row[0]) if row else None
+    # pgvector が返す Vector は list() で直接展開できない。
+    # search() と同じ _to_tuple を通す。
+    return list(_to_tuple(row[0])) if row else None
+
+
+def get_embeddings(tenant_id: str, item_ids: Sequence[str]) -> dict[str, list[float]]:
+    """複数アイテムの埋め込みをまとめて引く。
+
+    履歴からユーザープロファイルを作る用途では 1 ユーザーあたり数十件を読む。
+    1 件ずつ問い合わせると接続の開閉がその回数だけ発生する。
+    """
+    if not item_ids:
+        return {}
+
+    with connect(tenant_id) as conn:
+        rows = conn.execute(
+            "SELECT item_id, embedding FROM items WHERE tenant_id = %s AND item_id = ANY(%s)",
+            (tenant_id, list(item_ids)),
+        ).fetchall()
+    return {r[0]: list(_to_tuple(r[1])) for r in rows}
 
 
 def count(tenant_id: str | None = None) -> int:
