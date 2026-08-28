@@ -1,0 +1,38 @@
+services:
+  postgres:
+    build: .
+    environment:
+      # ja_JP.UTF-8 は Debian trixie の基本イメージに含まれず initdb が失敗する。
+      # 日本語の形態素解析は PGroonga 側が行うため C.UTF-8 で足りる。
+      LANG: C.UTF-8
+      POSTGRES_INITDB_ARGS: "--locale=C.UTF-8 --encoding=UTF8"
+      POSTGRES_USER: rag
+      POSTGRES_PASSWORD: rag
+      POSTGRES_DB: ragdb
+    ports:
+      - "15434:5432"
+    # 並列インデックス構築は共有メモリ（/dev/shm）を使う。
+    # Docker の既定は 64MB で、maintenance_work_mem を大きくすると
+    # "could not resize shared memory segment: No space left on device" で落ちる。
+    # 設定ファイル側で 1GB を指定していても、コンテナ側の上限が先に効く。
+    # 実測では maintenance_work_mem=256MB で踏んだ。
+    shm_size: 1gb
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./postgresql.conf:/etc/postgresql/postgresql.conf:ro
+      - ./init:/docker-entrypoint-initdb.d:ro
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    healthcheck:
+      # 接続できることと拡張が入っていることを別々に確かめる。
+      # 接続だけ見て healthy にすると、拡張の導入に失敗していても緑になる。
+      test: >-
+        psql -U rag -d ragdb -tAc
+        "SELECT count(*) FROM pg_extension WHERE extname IN ('vector','pgroonga')"
+        | grep -q '^2$$'
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+
+volumes:
+  pgdata:
