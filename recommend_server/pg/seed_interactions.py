@@ -6,8 +6,16 @@
 実サービスの利用分布はロングテールになる。少数のアイテムに利用が集中し、
 大多数はほとんど触れられない。ここでは 2 つの機構でそれを作る。
 
-  1. 嗜好  ユーザーごとに好むカテゴリがあり、その中から選ぶ
+  1. 嗜好  ユーザーごとに好むカテゴリと属性（色・素材）があり、それに合うものを選ぶ
   2. 追従  すでに人気のあるアイテムほど選ばれやすい（優先的選択）
+
+嗜好をカテゴリだけにすると、カテゴリ内では一様になる。約 200 件から
+次の 1 件を当てる問題になり、どの方式も偶然の水準（5% 前後）に潰れる。
+内容ベースが学ぶべき構造が無いため、予測精度の比較にならない。
+実測で follow_ratio=0.2 のとき全方式が Recall 0.03 前後になった。
+
+色や素材まで好みを持たせると、埋め込みが捉えられる構造が入る。
+実サービスでも「黒い服が好き」「リネンを好む」という一貫性はある。
 
 2 が無いと、カテゴリ内では均等になりロングテールにならない。
 
@@ -28,6 +36,7 @@ import random
 from collections import Counter
 
 from . import interactions, store
+from .seed import COLORS, MATERIALS
 
 
 def build_events(
@@ -35,6 +44,9 @@ def build_events(
     n_users: int,
     events_per_user: tuple[int, int],
     follow_ratio: float,
+    attrs_by_item: dict[str, tuple[str, ...]] | None = None,
+    colors: list[str] | None = None,
+    materials: list[str] | None = None,
     alpha: float = 1.0,
     seed: int = 42,
 ) -> list[interactions.Event]:
@@ -43,6 +55,9 @@ def build_events(
     follow_ratio は「人気に引かれて選ぶ割合」。0 なら嗜好だけで選ぶ。
     """
     rng = random.Random(seed)
+    attrs_by_item = attrs_by_item or {}
+    colors = colors or []
+    materials = materials or []
     categories = list(item_ids_by_category)
     all_items = [i for ids in item_ids_by_category.values() for i in ids]
 
@@ -52,9 +67,27 @@ def build_events(
     events: list[interactions.Event] = []
     for u in range(n_users):
         user_id = f"user-{u:04d}"
-        # 各ユーザーは 1〜2 個のカテゴリを好む。
+        # 各ユーザーは 1〜2 個のカテゴリと、色・素材の好みを持つ。
         taste = rng.sample(categories, k=rng.choice([1, 1, 2]))
         pool = [i for c in taste for i in item_ids_by_category[c]]
+
+        # 属性の好みに合うものを重く扱う。合わないものも選ばれ得るが確率は低い。
+        # 完全に絞ると嗜好の外に一切出なくなり、実サービスと離れる。
+        if attrs_by_item:
+            fav = {
+                "color": rng.choice(colors) if colors else None,
+                "material": rng.choice(materials) if materials else None,
+            }
+            weighted = []
+            for i in pool:
+                a = attrs_by_item.get(i, ())
+                score = 1
+                if fav["color"] and fav["color"] in a:
+                    score += 6
+                if fav["material"] and fav["material"] in a:
+                    score += 6
+                weighted.extend([i] * score)
+            pool = weighted or pool
 
         n = rng.randint(*events_per_user)
         chosen: set[str] = set()
@@ -91,15 +124,17 @@ def main() -> None:
 
     with store.connect(args.tenant) as conn:
         rows = conn.execute(
-            "SELECT category, item_id FROM items WHERE tenant_id = %s", (args.tenant,)
+            "SELECT category, item_id, tags FROM items WHERE tenant_id = %s", (args.tenant,)
         ).fetchall()
 
     if not rows:
         raise SystemExit(f"テナント {args.tenant} にアイテムがない。先に seed.py を実行する")
 
     by_cat: dict[str, list[str]] = {}
-    for cat, item_id in rows:
+    attrs: dict[str, tuple[str, ...]] = {}
+    for cat, item_id, tags in rows:
         by_cat.setdefault(cat or "未分類", []).append(item_id)
+        attrs[item_id] = tuple(tags or ())
 
     if args.reset:
         with store.connect(args.tenant) as conn:
@@ -109,6 +144,9 @@ def main() -> None:
     events = build_events(
         by_cat,
         n_users=args.users,
+        attrs_by_item=attrs,
+        colors=COLORS,
+        materials=MATERIALS,
         events_per_user=(args.min_events, args.max_events),
         follow_ratio=args.follow_ratio,
         alpha=args.alpha,
