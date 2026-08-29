@@ -103,6 +103,20 @@ def evaluate(tenant_id: str, name: str, recommend, users: list[str], catalog_siz
     )
 
 
+# pearson はカタログ全体を要するため、テナントごとに 1 度だけ作る。
+_pearson_cache: dict[str, object] = {}
+
+
+def _pearson(tenant_id: str):
+    if tenant_id not in _pearson_cache:
+        with store.connect(owner=True) as conn:
+            catalog = [r[0] for r in conn.execute(
+                "SELECT item_id FROM items WHERE tenant_id = %s ORDER BY item_id",
+                (tenant_id,)).fetchall()]
+        _pearson_cache[tenant_id] = collaborative._pearson_over(catalog)
+    return _pearson_cache[tenant_id]
+
+
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--tenant", default="demo")
@@ -127,8 +141,16 @@ def main() -> None:
          lambda t, u: baselines.most_popular(t, u, top_k=args.top_k)),
         ("内容ベース（履歴の重心）",
          lambda t, u: content_based.recommend(t, u, top_k=args.top_k)),
-        ("協調 ユーザー間型",
+        ("協調 ユーザー間型 cos",
          lambda t, u: collaborative.user_based(t, u, top_k=args.top_k)),
+        # 類似度の定義で結果が変わるかを見る。
+        # 教材は非購入を「嫌い」と置く形（pearson 相当）を前提にしている。
+        ("協調 ユーザー間型 jaccard",
+         lambda t, u: collaborative.user_based(
+             t, u, top_k=args.top_k, similarity=collaborative._jaccard)),
+        ("協調 ユーザー間型 pearson",
+         lambda t, u: collaborative.user_based(
+             t, u, top_k=args.top_k, similarity=_pearson(t))),
         ("協調 アイテム間型",
          lambda t, u: collaborative.item_based(t, u, top_k=args.top_k)),
     ]
