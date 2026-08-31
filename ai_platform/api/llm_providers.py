@@ -75,18 +75,22 @@ class VertexAIClient(BaseLLMClient):
     """
     Google Vertex AI (Model Garden) クライアント
 
-    使用可能なモデル:
-    - gemini-1.5-pro
-    - gemini-1.5-flash
-    - gemini-2.0-flash-exp
-    - claude-3-5-sonnet (Model Garden経由)
+    使用可能なモデル（2026-08 時点）:
+    - gemini-3.1-pro （Pro の最上位。3.5 Pro は出ていない）
+    - gemini-3.5-flash / gemini-3.6-flash / gemini-3.7-flash
+    - gemini-3.1-flash-lite （最も費用効率がよい）
+    - claude 系 （Model Garden 経由）
+
+    gemini-2.x 系は 2026-10-16 に提供終了する。
+    Flash は 4 か月で 3.1 から 3.7 まで進む一方、Pro は 3.1 で止まっている。
+    系列によって更新の速さが違うため、まとめて追わない。
     """
 
     def __init__(
         self,
         project_id: Optional[str] = None,
         location: str = "us-central1",
-        model: str = "gemini-1.5-flash"
+        model: str = "gemini-3.5-flash"
     ):
         self.project_id = project_id or os.getenv("GOOGLE_CLOUD_PROJECT")
         self.location = location
