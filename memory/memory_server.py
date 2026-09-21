@@ -15,6 +15,7 @@ from pathlib import Path
 
 import numpy as np
 from fastmcp import FastMCP
+from mcp.types import ToolAnnotations
 
 mcp = FastMCP("memory-server")
 
@@ -225,7 +226,7 @@ def _cosine_similarity(a: list[float], b: list[float]) -> float:
     return float(dot / (norm_a * norm_b))
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False))
 def remember(content: str, category: str = "general", tags: list[str] | None = None) -> str:
     """Purpose: Save a memory for long-term retention across sessions.
     Use when: The user shares important information, decisions, learnings, or experiences worth remembering later.
@@ -251,7 +252,8 @@ def remember(content: str, category: str = "general", tags: list[str] | None = N
     return f"記憶を保存しました（全{count}件）"
 
 
-@mcp.tool()
+# 検索のたびに accessed_at と access_count を書き換え、forget(older_than_days) の対象を変えるので読み取り専用にしない。
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=False))
 def recall(query: str, limit: int = 5, category: str | None = None, rerank: bool = True) -> str:
     """Purpose: Search past memories using hybrid retrieval (FTS5 + vector similarity + temporal decay + reranking).
     Use when: You need to retrieve previously stored knowledge, decisions, or experiences relevant to the current context.
@@ -375,7 +377,7 @@ def recall(query: str, limit: int = 5, category: str | None = None, rerank: bool
     return "\n---\n".join(output)
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=True, idempotentHint=True))
 def forget(memory_id: int | None = None, older_than_days: int | None = None) -> str:
     """Purpose: Delete memories by ID or by staleness (days since last access).
     Use when: The user explicitly asks to remove a specific memory, or to clean up old/outdated memories.
@@ -402,7 +404,7 @@ def forget(memory_id: int | None = None, older_than_days: int | None = None) -> 
     return "memory_id または older_than_days を指定してください"
 
 
-@mcp.tool()
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True))
 def memory_stats() -> str:
     """Purpose: Return summary statistics about stored memories (total count, categories, embedding coverage).
     Use when: The user wants to understand how many memories are stored, their distribution, or the health of the memory system.
