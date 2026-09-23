@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import argparse
 
-from . import content_based, collaborative, hybrid, interactions, store
+from . import content_based, collaborative, generative, hybrid, interactions, store
 
 
 def add_synthetic_users(tenant_id: str, sizes: list[int], seed: int = 99) -> list[str]:
@@ -61,7 +61,8 @@ def new_item_reachability(tenant_id: str, users: list[str], top_k: int = 10) -> 
     for name, fn in (("内容ベース", content_based.recommend),
                      ("協調 アイテム間型", collaborative.item_based),
                      ("ハイブリッド(切替)", hybrid.recommend),
-                     ("ハイブリッド(枠確保)", hybrid.blend)):
+                     ("ハイブリッド(枠確保)", hybrid.blend),
+                     ("生成 SID n-gram", generative.recommend)):
         shown = set()
         for u in users:
             shown.update(r.item_id for r in fn(tenant_id, u, top_k=top_k))
@@ -80,15 +81,16 @@ def main() -> None:
     sizes = [0, 1, 2, 3, 5, 10]
     cold = add_synthetic_users(args.tenant, sizes)
 
-    print(f"{'履歴':>5}{'内容ベース':>12}{'協調':>10}{'ハイブリッド':>14}")
-    print("-" * 44)
+    print(f"{'履歴':>5}{'内容ベース':>12}{'協調':>10}{'生成 SID':>10}{'ハイブリッド':>14}")
+    print("-" * 54)
     for n, uid in zip(sizes, cold):
         cb = len(content_based.recommend(args.tenant, uid, top_k=args.top_k))
         cf = len(collaborative.item_based(args.tenant, uid, top_k=args.top_k))
+        sid = len(generative.recommend(args.tenant, uid, top_k=args.top_k))
         hy = hybrid.recommend(args.tenant, uid, top_k=args.top_k)
         src = hy[0].source if hy else "-"
-        print(f"{n:>5}{cb:>10} 件{cf:>8} 件{len(hy):>8} 件 ({src})")
-    print("-" * 44)
+        print(f"{n:>5}{cb:>10} 件{cf:>8} 件{sid:>8} 件{len(hy):>8} 件 ({src})")
+    print("-" * 54)
     print("  履歴 0 件ではどの方式も推薦を出せない。プロファイルが無いため")
 
     print()
@@ -101,7 +103,8 @@ def main() -> None:
     print()
     print(f"{'方式':<22}{'新規アイテムの登場数':>22}")
     print("-" * 46)
-    for k in ("内容ベース", "協調 アイテム間型", "ハイブリッド(切替)", "ハイブリッド(枠確保)"):
+    for k in ("内容ベース", "協調 アイテム間型", "ハイブリッド(切替)", "ハイブリッド(枠確保)",
+              "生成 SID n-gram"):
         print(f"  {k:<20}{r[k]:>18} 件")
     print("-" * 46)
     print("  協調は行動ログの無いアイテムを候補にできないため 0 件になるはず")

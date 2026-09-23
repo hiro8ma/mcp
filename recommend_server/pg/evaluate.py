@@ -26,7 +26,7 @@ import argparse
 from collections import Counter
 from dataclasses import dataclass
 
-from . import baselines, collaborative, content_based, interactions, store
+from . import baselines, collaborative, content_based, generative, interactions, store
 
 
 @dataclass
@@ -153,6 +153,8 @@ def main() -> None:
              t, u, top_k=args.top_k, similarity=_pearson(t))),
         ("協調 アイテム間型",
          lambda t, u: collaborative.item_based(t, u, top_k=args.top_k)),
+        ("生成 SID n-gram",
+         lambda t, u: generative.recommend(t, u, top_k=args.top_k)),
     ]
 
     print(f"テナント {args.tenant} / カタログ {catalog_size} 件 / "

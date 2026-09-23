@@ -79,12 +79,14 @@ This server implements **vector search** using ChromaDB.
 | `content_based.py` | 内容ベース。履歴の埋め込みを平均してユーザープロファイルを作る |
 | `collaborative.py` | 協調（メモリベース法）。ユーザー間型とアイテム間型 |
 | `baselines.py` | 基準線。ランダムと人気順 |
+| `generative.py` | 生成型。残差 k-means の Semantic ID を n-gram と trie 制約付きビームサーチで生成する |
 | `evaluate.py` | カバレッジ・人気バイアス・ジニ係数の計測 |
 
 ```bash
 uv run python -m pg.seed --tenant demo --limit 2000
 uv run python -m pg.seed_interactions --tenant demo --users 300 --reset
 uv run python -m pg.evaluate --tenant demo --top-k 10
+uv run python -m pg.generative --tenant demo   # Semantic ID の品質（L / K ごと）
 ```
 
 実測結果（カタログ 1176 件・ユーザー 300 人・上位 1% が全利用の 35.4%）

@@ -23,7 +23,7 @@ import argparse
 import random
 from dataclasses import dataclass
 
-from . import baselines, collaborative, content_based, interactions, store
+from . import baselines, collaborative, content_based, generative, interactions, store
 
 
 @dataclass
@@ -102,7 +102,10 @@ def main() -> None:
         ("内容ベース", lambda t, u: content_based.recommend(t, u, top_k=args.top_k)),
         ("協調 ユーザー間型", lambda t, u: collaborative.user_based(t, u, top_k=args.top_k)),
         ("協調 アイテム間型", lambda t, u: collaborative.item_based(t, u, top_k=args.top_k)),
+        ("生成 SID n-gram", lambda t, u: generative.recommend(t, u, top_k=args.top_k)),
     ]
+    # 隠した 1 件を消した状態で学習させないよう、評価の前に全件で学習しておく。
+    generative.model(args.tenant)
 
     print(f"テナント {args.tenant} / ユーザー {len(users)} 人 / top-{args.top_k}")
     print("各ユーザーの履歴から 1 件を隠し、上位 K に戻せるかで測る\n")
