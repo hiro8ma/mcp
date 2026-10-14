@@ -73,6 +73,7 @@ This server implements **vector search** using ChromaDB.
 
 ### pgvector の検索表現と候補評価
 
+- [初回COPY・パーティション索引・モデル移行の実験](pg/README-load-and-partitions.md)：空テーブルへのバイナリ投入、親索引の invalid→valid、モデル別の次元制約と索引を検証する。
 - [二値候補検索の評価手順](pg/README-binary.md)：テナント・カテゴリ条件を揃え、実候補数、候補への正解の包含率、最終 Recall、平均/p95 遅延を測る。
 - [疎ベクトルの SQL 例](pg/examples/sparsevec.sql)：1 始まりの添字と、内積・コサインの演算子/索引の組み合わせを確認する。`vector` 拡張が作成済みのテスト DB で `psql -v ON_ERROR_STOP=1 "$TEST_DATABASE_URL" -f pg/examples/sparsevec.sql` を実行する。データと索引は一時テーブルで、終了時に破棄する。
 
