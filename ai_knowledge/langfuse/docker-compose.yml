@@ -128,7 +128,7 @@ services:
       start_period: 1s
 
   redis:
-    image: docker.io/redis:7
+    image: docker.io/redis:8
     restart: always
     # CHANGEME: row below to secure redis password
     command: >
